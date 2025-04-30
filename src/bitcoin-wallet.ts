@@ -14,7 +14,7 @@ import { MempoolReturn } from "@mempool/mempool.js/lib/interfaces/index.js";
 bitcoin.initEccLib(ecc);
 const ECPair = ECPairFactory(ecc);
 
-// Mempoo client configuration
+// Mempool client configuration
 interface MempoolConfig {
   host: string;
   port: number;
@@ -22,8 +22,8 @@ interface MempoolConfig {
 
 // Default Mempool client configuration
 const defaultMempoolConfig: MempoolConfig = {
-  host: "localhost",
-  port: 1080,
+  host: process.env.MEMPOOL_HOST ?? "mempool.space",
+  port: process.env.MEMPOOL_PORT ? Number(process.env.MEMPOOL_PORT) : 443,
 };
 
 // Define the type for unspent output from Bitcoin RPC
@@ -176,7 +176,6 @@ export class BitcoinWalletImpl implements BitcoinWallet {
           address: address,
         });
 
-      console.log(unspentOutputs);
       // Map the unspent outputs to our UTXO format
       return unspentOutputs.map((output: AddressTxsUtxo) => ({
         txid: output.txid,
@@ -209,7 +208,10 @@ export class BitcoinWalletImpl implements BitcoinWallet {
 
       return BigInt(fee);
     } catch (error) {
-      console.error("Failed to estimate fee from Bitcoin RPC:", error);
+      console.error(
+        "Failed to estimate fee from Bitcoin RPC, defaulting to 1000 sats: ",
+        error?.toString()?.slice(0, 80),
+      );
       return 1000n;
     }
   }

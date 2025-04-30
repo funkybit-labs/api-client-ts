@@ -7,14 +7,18 @@ import {Balance, Order, Trade} from "@/types.js";
 import {Decimal} from "decimal.js";
 import {formatUnits} from "viem";
 
-const bitcoinWallet = new BitcoinWalletImpl(Buffer.from(wif.decode("L56pJGiipykc6Q7nSbNTpVoRtgBice5tqtsWWaFisjY1tu2nbD7z").privateKey).toString('hex'), networks.regtest)
+// before running this example, populate these with:
+//   a WIF format key for a bitcoin wallet with at least 5000 sats
+const btcPrivateKey = process.env.FUNKYBIT_EXAMPLE_BTC_KEY ?? ""
+//   a hex format key for an evm wallet with at least 3 USDC on Base (and a little ETH for gas)
+const evmPrivateKey = process.env.FUNKYBIT_EXAMPLE_EVM_KEY ?? ""
+const bitcoinWallet = new BitcoinWalletImpl(Buffer.from(wif.decode(btcPrivateKey).privateKey).toString('hex'), networks.regtest)
 console.log(`Demo Bitcoin Address (P2WPKH): ${bitcoinWallet.address}`);
 
-const evmWallet = new EvmWalletImpl("eb26ff8ad398676bdb5a9759ad2c8635c73bd2f5825341df1b952a99bad9d220") //.createRandom()
+const evmWallet = new EvmWalletImpl("0xeb26ff8ad398676bdb5a9759ad2c8635c73bd2f5825341df1b952a99bad9d220") //.createRandom()
 console.log(`Demo EVM Address: ${evmWallet.address}`);
 
-// --- FunkybitClient Instantiation and Login ---
-async function waitFor(description: string, condition: () => boolean, upTo: number = 5000) {
+async function waitFor(description: string, condition: () => boolean, upTo: number = 10000) {
   const start = new Date().getTime()
   return await new Promise((resolve, reject) => {
     const interval = setInterval(() => {
@@ -88,30 +92,31 @@ export async function runExample() {
     }
 
     const bitcoinSymbol = client.bitcoinSymbol()
+    const btcDepositAmount = 3000n
     if (bitcoinSymbol !== undefined) {
       const bitcoinBalance = balances!.find(b => b.symbol === bitcoinSymbol.name)?.available
-      if ((bitcoinBalance ?? 0n) < 10000n) {
+      if ((bitcoinBalance ?? 0n) < btcDepositAmount) {
         console.log("Attempting a btc deposit")
-        const deposit = await client.deposit(bitcoinSymbol, 10000n)
-        await waitFor("BTC deposit to complete", () => (balanceOf(bitcoinSymbol.name) ?? 0n) >= 10000n)
-        console.log("✅ BTC deposit successful!", deposit);
+        const deposit = await client.deposit(bitcoinSymbol, btcDepositAmount)
+        await waitFor(`BTC deposit ${deposit.id} to complete`, () => (balanceOf(bitcoinSymbol.name) ?? 0n) >= btcDepositAmount, 30 * 60 * 1000)
+        console.log("✅ BTC deposit successful!");
       }
     }
 
+    const usdcDepositAmount = 3000000n
     const usdcSymbol = client.usdcSymbol()
     if (usdcSymbol !== undefined) {
       const usdcBalance = balances!.find(b => b.symbol === usdcSymbol.name)?.available
-      if ((usdcBalance ?? 0n) < 10000000n) {
+      if ((usdcBalance ?? 0n) < usdcDepositAmount) {
         console.log("Attempting a USDC deposit")
-        const deposit = await client.deposit(usdcSymbol, 10000000n)
-        await waitFor("USDC deposit to complete", () => (balanceOf(usdcSymbol.name) ?? 0n) >= 10000000n)
-        console.log("✅ USDC deposit successful!", deposit);
+        const deposit = await client.deposit(usdcSymbol, usdcDepositAmount)
+        await waitFor(`USDC deposit ${deposit.id} to complete`, () => (balanceOf(usdcSymbol.name) ?? 0n) >= usdcDepositAmount)
+        console.log("✅ USDC deposit successful!");
       }
     }
 
     // get a list of coins
     const coins = await client.search("Trending", "", false)
-    console.log("Coins:", coins.map(c => c.symbol.name))
 
     if (coins.length > 0) {
       const orders: Map<string, Order> = new Map()
@@ -130,12 +135,16 @@ export async function runExample() {
         }
       )
       const filledOrderIds: string[] = []
-      const market = await client.getMarket(coins[0])
+
+      // choose the market with the smallest market cap
+      const market = await client.getMarket(coins.sort((a, b) => a.marketCap.sub(b.marketCap).toNumber())[0])
+      console.log("Picked coin to trade:", market.baseSymbol.name)
       // buy with USDC
       const buyUSDCQuote = await client.getQuote(market, 'Buy', 200000000000n, 'USDC')
       if (buyUSDCQuote) {
+        console.log(`Got a quote of ${formatUnits(buyUSDCQuote.quote, 6)} USDC to buy 200,000 coins`)
         const order = await client.placeOrder(buyUSDCQuote)
-        console.log("✅ Placed USDC buy order", order);
+        console.log("✅ Placed USDC buy order");
         await waitFor("USDC buy order to reach a terminal state", () => orders.get(order.orderId)?.isFinal() ?? false)
         const finalStatus = orders.get(order.orderId)?.status
         console.log("USDC buy order final status", finalStatus);
@@ -147,8 +156,9 @@ export async function runExample() {
       // sell with USDC
       const sellUSDCQuote = await client.getQuote(market, 'Sell', 200000000000n, 'USDC')
       if (sellUSDCQuote) {
+        console.log(`Got a quote of ${formatUnits(sellUSDCQuote.quote, 6)} USDC for selling 200,000 coins`)
         const order = await client.placeOrder(sellUSDCQuote)
-        console.log("✅ Placed USDC sell order", order);
+        console.log("✅ Placed USDC sell order");
         await waitFor("USDC sell order to reach a terminal state", () => orders.get(order.orderId)?.isFinal() ?? false)
         const finalStatus = orders.get(order.orderId)?.status
         console.log("USDC sell order final status", finalStatus);
@@ -160,8 +170,9 @@ export async function runExample() {
       // buy with BTC
       const buyBTCQuote = await client.getQuote(market, 'Buy', 200000000000n, 'BTC')
       if (buyBTCQuote) {
+        console.log(`Got a quote of ${formatUnits(buyBTCQuote.quote, 8)} BTC to buy 200,000 coins`)
         const order = await client.placeOrder(buyBTCQuote)
-        console.log("✅ Placed BTC buy order", order);
+        console.log("✅ Placed BTC buy order");
         await waitFor("BTC buy order to reach a terminal state", () => orders.get(order.orderId)?.isFinal() ?? false)
         const finalStatus = orders.get(order.orderId)?.status
         console.log("BTC buy order final status", finalStatus);
@@ -173,8 +184,9 @@ export async function runExample() {
       // sell with BTC
       const sellBTCQuote = await client.getQuote(market, 'Sell', 200000000000n, 'BTC')
       if (sellBTCQuote) {
+        console.log(`Got a quote of ${formatUnits(sellBTCQuote.quote, 8)} BTC for selling 200,000 coins`)
         const order = await client.placeOrder(sellBTCQuote)
-        console.log("✅ Placed BTC sell order", order);
+        console.log("✅ Placed BTC sell order");
         await waitFor("BTC sell order to reach terminal state", () => orders.get(order.orderId)?.isFinal() ?? false)
         const finalStatus = orders.get(order.orderId)?.status
         console.log("BTC sell order final status", finalStatus);
@@ -217,6 +229,7 @@ export async function runExample() {
 
     unsubscribeFromBalances()
     client.shutdown()
+    console.log("✅ FunkybitClient example completed!");
   } catch (error) {
     console.error("❌ An error occurred during the FunkybitClient operation:", error);
   }

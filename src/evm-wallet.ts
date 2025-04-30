@@ -60,7 +60,6 @@ export class EvmWalletImpl implements EvmWallet {
   /**
    * Create a new EVM wallet from an existing ethers Wallet
    * @param wallet An ethers.js Wallet instance
-   * @param chainId The chain ID (default: 1 for Ethereum mainnet)
    * @param providerConfig Optional provider configuration
    * @returns A new EvmWalletImpl instance
    */
@@ -132,8 +131,6 @@ export class EvmWalletImpl implements EvmWallet {
    * @returns Promise resolving to the result
    */
   async call(to: string, data: string): Promise<string> {
-    console.log(`EVM Wallet: Making read-only call to ${to}`);
-    console.log("Call data:", data);
     try {
       // Make a read-only call using the provider
       return await this.provider.call({
@@ -158,10 +155,6 @@ export class EvmWalletImpl implements EvmWallet {
     value: bigint,
     data?: string,
   ): Promise<string> {
-    console.log(`EVM Wallet: Sending ${value} to ${to}`);
-    if (data) {
-      console.log("Transaction data:", data);
-    }
     try {
       // Create transaction object
       const tx = {
@@ -199,10 +192,6 @@ export class EvmWalletImpl implements EvmWallet {
    * @returns Promise resolving to the estimated gas
    */
   async estimateGas(to: string, value: bigint, data?: string): Promise<bigint> {
-    console.log(`EVM Wallet: Estimating gas for transaction to ${to}`);
-    if (data) {
-      console.log("Transaction data:", data);
-    }
     try {
       // Create transaction object
       const tx = {
