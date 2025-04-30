@@ -1,4 +1,4 @@
-import { runLoginExample } from './example.js';
+import { runExample } from './example.js';
 
 // Run the example
-runLoginExample().catch(console.error); 
+runExample().catch(console.error);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 import {TypedDataDomain, TypedDataField} from "ethers";
 
 /**
@@ -22,6 +22,36 @@ export interface EvmWallet extends BaseWallet {
    * @returns Promise resolving to the signature
    */
   signTypedData: (domain: TypedDataDomain, types: Record<string, Array<TypedDataField>>, value: Record<string, any>) => Promise<string>;
+  
+  /**
+   * Execute a read-only contract call
+   * @param to The contract address
+   * @param data The encoded function call data
+   * @returns Promise resolving to the call result
+   */
+  call: (to: string, data: string) => Promise<string>;
+  
+  /**
+   * Send a transaction
+   * @param to The recipient address
+   * @param value The amount to send (in native currency)
+   * @param data Optional transaction data
+   * @returns Promise resolving to the transaction hash
+   */
+  sendTransaction: (to: string, value: bigint, data?: string) => Promise<string>;
+  
+  /**
+   * Estimate gas cost for a transaction
+   * @param to The recipient address
+   * @param value The amount to send (in native currency)
+   * @param data Optional transaction data
+   * @returns Promise resolving to the estimated gas cost
+   */
+  estimateGas: (to: string, value: bigint, data?: string) => Promise<bigint>;
+
+  waitForTransactionReceipt: (txHash: string) => Promise<void>;
+
+  switchChain: (chainId: number) => Promise<void>;
 }
 
 /**
@@ -36,7 +66,28 @@ export interface BitcoinWallet extends BaseWallet {
    * @returns Promise resolving to the signature
    */
   signMessage: (address: string, message: string) => Promise<string>;
+  
+  /**
+   * Send a Bitcoin transaction
+   * @param to The recipient address
+   * @param amount The amount to send (in satoshis)
+   * @returns Promise resolving to the transaction hash
+   */
+  sendTransaction: (to: string, amount: bigint) => Promise<string>;
+  
+  /**
+   * Estimate the fee for a Bitcoin transaction
+   * @returns Promise resolving to the estimated fee in satoshis
+   */
+  estimateFee: () => Promise<bigint>;
 }
+declare global {
+  interface BigInt {
+    toJSON(): Number;
+  }
+}
+
+BigInt.prototype.toJSON = function () { return Number(this) }
 
 const AuthorizeWalletRequestSchema = z.object({
   authorizedAddress: z.string(),
@@ -170,6 +221,7 @@ const ChainSchema = z.object({
 export type Chain = z.infer<typeof ChainSchema>
 
 const MarketSchema = z.object({
+  type: z.literal('Clob'),
   id: z.string(),
   baseSymbol: z.string(),
   quoteSymbol: z.string(),
@@ -183,7 +235,7 @@ export type Market = z.infer<typeof MarketSchema>
 const MarketTypeSchema = z.enum(['Clob', 'BondingCurve', 'Amm'])
 export type MarketType = z.infer<typeof MarketTypeSchema>
 
-const MarketWithSymbolInfosSchema = z.object({
+export const MarketWithSymbolInfosSchema = z.object({
   id: z.string(),
   baseSymbol: SymbolSchema,
   quoteSymbol: SymbolSchema,
@@ -193,6 +245,7 @@ const MarketWithSymbolInfosSchema = z.object({
   feeRate: decimal(),
   type: MarketTypeSchema
 })
+
 export type MarketWithSymbolInfos = z.infer<typeof MarketWithSymbolInfosSchema>
 
 const FeeRatesSchema = z.object({
@@ -239,3 +292,410 @@ export const ApiErrorsSchema = z.object({
   message: z.string(),
   details: z.record(z.unknown()).optional()
 });
+
+
+export const CreateDepositApiRequestSchema = z.object({
+  symbol: z.string(),
+  amount: z.coerce.bigint(),
+  txHash: z.string()
+})
+
+const DepositStatusSchema = z.enum(['Pending', 'Complete', 'Failed'])
+export type DepositStatus = z.infer<typeof DepositStatusSchema>
+
+const DepositSchema = z.object({
+  id: z.string(),
+  symbol: z.string(),
+  txHash: z.string(),
+  amount: z.coerce.bigint(),
+  status: DepositStatusSchema,
+  error: z.string().nullable(),
+  createdAt: z.coerce.date()
+})
+export type Deposit = z.infer<typeof DepositSchema>
+
+export const DepositApiResponseSchema = z.object({
+  deposit: DepositSchema
+})
+
+const ListDepositsApiResponseSchema = z.object({
+  deposits: z.array(DepositSchema)
+})
+
+export const CreateWithdrawalApiRequestSchema = z.object({
+  symbol: z.string(),
+  amount: z.coerce.bigint(),
+  nonce: z.number(),
+  signature: z.string()
+})
+
+const WithdrawalStatusSchema = z.enum([
+  'Pending',
+  'Sequenced',
+  'Settling',
+  'Complete',
+  'Failed'
+])
+export type WithdrawalStatus = z.infer<typeof WithdrawalStatusSchema>
+const WithdrawalSchema = z.object({
+  id: z.string(),
+  symbol: z.string(),
+  txHash: z.string().nullable(),
+  amount: z.coerce.bigint(),
+  status: WithdrawalStatusSchema,
+  error: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  fee: z.coerce.bigint()
+})
+export type Withdrawal = z.infer<typeof WithdrawalSchema>
+
+export const WithdrawalApiResponseSchema = z.object({
+  withdrawal: WithdrawalSchema
+})
+
+const ListWithdrawalsApiResponseSchema = z.object({
+  withdrawals: z.array(WithdrawalSchema)
+})
+
+export const SymbolLinkTypeSchema = z.enum(['Web', 'X', 'Telegram', 'Discord'])
+
+export type SymbolLinkType = z.infer<typeof SymbolLinkTypeSchema>
+
+const SymbolLinkSchema = z.object({
+  type: SymbolLinkTypeSchema,
+  url: z.string()
+})
+
+const CoinStatus = z.enum([
+  'Pending',
+  'BondingCurveAmm',
+  'Graduating',
+  'ConstantProductAmm'
+])
+
+export const CoinSchema = z.object({
+  symbol: SymbolSchema,
+  createdBy: CoinCreatorRefSchema.nullable(),
+  currentPrice: decimal(),
+  marketCap: decimal(),
+  lastTradedAt: z.coerce.date().nullable(),
+  progress: decimal().nullable(),
+  status: CoinStatus,
+  sequenceNumber: z.number(),
+  h24Change: decimal(),
+  d7Change: decimal(),
+  h24Volume: decimal(),
+  tvl: decimal(),
+  h24PoolVolume: decimal(),
+  h24PoolFees: decimal(),
+  h24MinPoolYield: decimal(),
+  h24MaxPoolYield: decimal(),
+  lastPoolCreatedAt: z.coerce.date().nullable(),
+  links: z.array(SymbolLinkSchema)
+})
+export type Coin = z.infer<typeof CoinSchema>
+export const ListCoinsApiResponseSchema = z.object({
+  coins: z.array(CoinSchema)
+})
+export type ListCoinsApiResponse = z.infer<typeof ListCoinsApiResponseSchema>
+
+export const CoinsSortOptionSchema = z.enum([
+  // home
+  'Trending',
+  'MarketCap',
+  'NewCoins',
+  'Faves',
+  'FunkedUp',
+  // pools
+  'NewestPool',
+  'Tvl',
+  'H24Volume',
+  'Yield',
+  'H24Fees'
+])
+export type CoinsSortOption = z.infer<typeof CoinsSortOptionSchema>
+
+export const CoinPoolsListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  feeRate: decimal(),
+  tvl: decimal(),
+  h24Volume: decimal(),
+  h24Fees: decimal(),
+  h24Yield: decimal(),
+  createdAt: z.coerce.date().nullable()
+})
+export type CoinPoolsListItem = z.infer<typeof CoinPoolsListItemSchema>
+
+const ListCoinPoolsApiResponseSchema = z.object({
+  pools: z.array(CoinPoolsListItemSchema)
+})
+
+const OrderSideSchema = z.enum(['Buy', 'Sell'])
+export type OrderSide = z.infer<typeof OrderSideSchema>
+
+const FixedAmountSchema = z.object({
+  type: z.literal('fixed'),
+  value: z.coerce.bigint()
+})
+
+const PercentAmountSchema = z.object({
+  type: z.literal('percent'),
+  value: z.number()
+})
+
+const OrderAmountSchema = z.discriminatedUnion('type', [
+  FixedAmountSchema,
+  PercentAmountSchema
+])
+export type OrderAmount = z.infer<typeof OrderAmountSchema>
+
+const OrderSlippageToleranceSchema = z.object({
+  expectedNotionalWithFee: z.coerce.bigint(),
+  maxDeviation: decimal()
+})
+
+export type ClientOrderId = string
+
+export const CreateMarketOrderSchema = z.object({
+  nonce: z.string(),
+  type: z.literal('market'),
+  marketId: z.string(),
+  side: OrderSideSchema,
+  amount: OrderAmountSchema,
+  signature: z.string(),
+  signingAddress: z.string(),
+  verifyingChainId: z.string(),
+  clientOrderId: z.string().nullable(),
+  captchaToken: z.string().nullable(),
+  slippageTolerance: OrderSlippageToleranceSchema.nullable(),
+  baseTokenContractAddress: z.string().nullable()
+})
+export type CreateMarketOrder = z.infer<typeof CreateMarketOrderSchema>
+
+export const CreateBackToBackMarketOrderSchema = z.object({
+  nonce: z.string(),
+  type: z.literal('backToBackMarket'),
+  marketId: z.string(),
+  adapterMarketId: z.string(),
+  side: OrderSideSchema,
+  amount: OrderAmountSchema,
+  signature: z.string(),
+  signingAddress: z.string(),
+  verifyingChainId: z.string(),
+  clientOrderId: z.string().nullable(),
+  captchaToken: z.string().nullable(),
+  slippageTolerance: OrderSlippageToleranceSchema.nullable()
+})
+export type CreateBackToBackMarketOrder = z.infer<
+  typeof CreateBackToBackMarketOrderSchema
+>
+
+export const CreateLimitOrderSchema = z.object({
+  nonce: z.string(),
+  type: z.literal('limit'),
+  marketId: z.string(),
+  side: OrderSideSchema,
+  amount: OrderAmountSchema,
+  price: decimal(),
+  signature: z.string(),
+  signingAddress: z.string(),
+  verifyingChainId: z.string(),
+  clientOrderId: z.string().nullable(),
+  captchaToken: z.string().nullable()
+})
+export type CreateLimitOrder = z.infer<typeof CreateLimitOrderSchema>
+
+export const CreateOrderRequestSchema = z.discriminatedUnion('type', [
+  CreateMarketOrderSchema,
+  CreateLimitOrderSchema,
+  CreateBackToBackMarketOrderSchema
+])
+export type CreateOrderRequest = z.infer<typeof CreateOrderRequestSchema>
+
+const RequestStatusSchema = z.enum(['Accepted', 'Rejected'])
+export const CreateOrderApiResponseSchema = z.object({
+  orderId: z.string(),
+  requestStatus: RequestStatusSchema
+})
+
+const OrderTimingSchema = z.object({
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date().nullable(),
+  closedAt: z.coerce.date().nullable(),
+  sequencerTimeNs: z.coerce.bigint()
+})
+
+const OrderStatusSchema = z.enum([
+  'Open',
+  'Partial',
+  'Filled',
+  'Cancelled',
+  'Expired',
+  'Failed',
+  'Rejected'
+])
+export type OrderStatus = z.infer<typeof OrderStatusSchema>
+const ExecutionRoleSchema = z.enum(['Maker', 'Taker'])
+export type ExecutionRole = z.infer<typeof ExecutionRoleSchema>
+
+const OrderExecutionSchema = z.object({
+  timestamp: z.coerce.date(),
+  amount: z.coerce.bigint(),
+  price: decimal(),
+  role: ExecutionRoleSchema,
+  feeAmount: z.coerce.bigint(),
+  feeSymbol: z.string(),
+  marketId: z.string()
+})
+const MarketOrderSchema = z.object({
+  id: z.string(),
+  type: z.literal('market'),
+  status: OrderStatusSchema,
+  marketId: z.string(),
+  side: OrderSideSchema,
+  amount: z.coerce.bigint(),
+  executions: z.array(OrderExecutionSchema),
+  timing: OrderTimingSchema
+})
+
+const LimitOrderSchema = z.object({
+  id: z.string(),
+  type: z.literal('limit'),
+  status: OrderStatusSchema,
+  marketId: z.string(),
+  side: OrderSideSchema,
+  amount: z.coerce.bigint(),
+  price: decimal(),
+  originalAmount: z.coerce.bigint(),
+  autoReduced: z.boolean(),
+  executions: z.array(OrderExecutionSchema),
+  timing: OrderTimingSchema
+})
+
+const BackToBackMarketOrderSchema = z.object({
+  id: z.string(),
+  type: z.literal('backToBackMarket'),
+  status: OrderStatusSchema,
+  marketId: z.string(),
+  adapterMarketId: z.string(),
+  side: OrderSideSchema,
+  amount: z.coerce.bigint(),
+  executions: z.array(OrderExecutionSchema),
+  timing: OrderTimingSchema
+})
+
+export const OrderSchema = z
+  .discriminatedUnion('type', [
+    MarketOrderSchema,
+    LimitOrderSchema,
+    BackToBackMarketOrderSchema
+  ])
+  .transform((data) => {
+    return {
+      ...data,
+      isFinal: function (): boolean {
+        return (
+          ['Filled', 'Cancelled', 'Expired', 'Failed', 'Rejected'].includes(
+            data.status as string
+          ) ||
+          (data.status == 'Partial' &&
+            (data.type === 'market' || data.type === 'backToBackMarket'))
+        )
+      }
+    }
+  })
+export type Order = z.infer<typeof OrderSchema>
+
+const TradeSettlementStatusSchema = z.enum([
+  'Pending',
+  'Settling',
+  'FailedSettling',
+  'Completed',
+  'Failed'
+])
+export type TradeSettlementStatus = z.infer<typeof TradeSettlementStatusSchema>
+
+export const TradeSchema = z.object({
+  id: z.string(),
+  timestamp: z.coerce.date(),
+  orderId: z.string(),
+  executionRole: ExecutionRoleSchema,
+  counterOrderId: z.string(),
+  marketId: z.string(),
+  side: OrderSideSchema,
+  amount: z.coerce.bigint(),
+  price: decimal(),
+  feeAmount: z.coerce.bigint(),
+  feeSymbol: z.string(),
+  settlementStatus: TradeSettlementStatusSchema
+})
+export type Trade = z.infer<typeof TradeSchema>
+
+export const BalanceSchema = z.object({
+  symbol: z.string(),
+  total: z.coerce.bigint(),
+  available: z.coerce.bigint(),
+  lastUpdated: z.coerce.date(),
+  usdcValue: decimal()
+})
+export type Balance = z.infer<typeof BalanceSchema>
+
+export const GetBalancesApiResponseSchema = z.object({
+  balances: z.array(BalanceSchema)
+})
+
+export const GetWalletBalanceApiResponseSchema = z.object({
+  balance: z.coerce.bigint()
+})
+
+export const MarketTradeFields = {
+  ID: 0,
+  SIDE: 1,
+  AMOUNT: 2,
+  PRICE: 3,
+  NOTIONAL: 4,
+  TIMESTAMP: 5,
+  TAKER_NICKNAME: 6,
+  TAKER_ID: 7
+} as const
+export const MarketTradeSchema = z.tuple([
+  z.string(), // trade id
+  OrderSideSchema, // type
+  z.coerce.bigint(), // amount
+  decimal(), // price
+  z.coerce.bigint(), // notional
+  z.coerce.date(), // timestamp
+  z.string(), // taker nickname
+  UserIdSchema // taker id
+])
+export type MarketTrade = z.infer<typeof MarketTradeSchema>
+
+const MarketTradesApiResponse = z.object({
+  marketId: z.string(),
+  trades: z.array(MarketTradeSchema)
+})
+export type MarketTradesApiResponseType = z.infer<
+  typeof MarketTradesApiResponse
+>
+
+export const CoinCommentSchema = z.object({
+  id: z.string(),
+  timestamp: z.coerce.date(),
+  authorId: UserIdSchema,
+  authorNickName: z.string().nullable(),
+  authorAvatarUrl: z.string().nullable(),
+  content: z.string(),
+  isMention: z.coerce.boolean(),
+  isMentionUnread: z.coerce.boolean()
+})
+export type CoinComment = z.infer<typeof CoinCommentSchema>
+
+export type QuoteSymbol = 'USDC' | 'BTC'
+export type Quote = {
+  market: MarketWithSymbolInfos,
+  side: OrderSide,
+  amount: bigint,
+  quote: bigint,
+  inAsset: QuoteSymbol,
+}
