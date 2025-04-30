@@ -1,6 +1,6 @@
-import { FunkybitClient } from './src/index.js';
-import {BitcoinWalletImpl} from './src/bitcoin-wallet.js';
-import {EvmWalletImpl} from "./src/evm-wallet.js";
+import { FunkybitClient } from '../src/index.js';
+import {BitcoinWalletImpl} from '../src/bitcoin-wallet.js';
+import {EvmWalletImpl} from "../src/evm-wallet.js";
 import {networks} from "bitcoinjs-lib";
 import * as wif from "wif"
 import {Balance, Order, Trade} from "@/types.js";
@@ -209,7 +209,7 @@ export async function runExample() {
       )
       console.log(`✅ Settlement completed`)
       const remainingBTCBalance = bitcoinSymbol ? balanceOf(bitcoinSymbol.name) ?? 0n : 0n
-      const remainingUSDCBalance = usdcSymbol ? balanceOf(usdcSymbol!.name) ?? 0n : 0n
+      const remainingUSDCBalance = usdcSymbol ? balanceOf(usdcSymbol.name) ?? 0n : 0n
       if (remainingUSDCBalance > 0n) {
         console.log(`Withdrawing ${formatUnits(remainingUSDCBalance, 6)} USDC`)
         await client.withdrawal(usdcSymbol!, remainingUSDCBalance)
