@@ -7,8 +7,9 @@ A TypeScript Client for interacting with funkybit - a cross-chain DeFi platform 
 - Cross-chain DeFi operations
 - Bitcoin and EVM chain integration
 - Type-safe API interactions
-- Comprehensive documentation
-- Easy-to-use interface
+- Real-time balance and order updates
+- Automated trading and settlement
+- Deposit and withdrawal functionality
 
 ## Installation
 
@@ -20,27 +21,33 @@ yarn add @funkybit/api-client
 
 ## Quick Start
 
-```typescript
-import { FunkybitClient } from '@funkybit/api-client';
+Before running the example, you'll need to set up two environment variables:
 
-// Initialize the client
-const client = new FunkybitClient({
-  // Configuration options will be added as we implement features
-});
+```bash
+# A WIF format key for a bitcoin wallet with at least 5000 sats
+export FUNKYBIT_EXAMPLE_BTC_KEY="your_btc_wif_key"
 
-// Example usage will be added as we implement features
+# A hex format key for an evm wallet with at least 3 USDC on Base (and a little ETH for gas)
+export FUNKYBIT_EXAMPLE_EVM_KEY="your_evm_private_key"
 ```
 
-## Documentation
+Then you can run the example:
 
-Detailed documentation will be added as we implement features. The client will support:
+```bash
+npm run example
+```
 
-- Bitcoin chain operations
-- EVM chain operations
-- Cross-chain transactions
-- DeFi operations (lending, borrowing, etc.)
-- Wallet management
-- Transaction signing
+The example will:
+1. Initialize wallets for both Bitcoin and EVM chains
+2. Log in to the Funkybit platform
+3. Subscribe to real-time balance updates
+4. Perform deposits if needed (BTC and USDC)
+5. Search for trending coins
+6. Execute trades (buy and sell) using both BTC and USDC
+7. Wait for trade settlement
+8. Withdraw remaining balances
+9. Clean up and shut down
+
 
 ## Development
 
@@ -62,13 +69,6 @@ npm run build
 yarn build
 ```
 
-### Testing
-
-```bash
-npm test
-# or
-yarn test
-```
 
 ### Linting
 
