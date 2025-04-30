@@ -1,5 +1,5 @@
-import {ethers, TypedDataDomain, TypedDataField} from 'ethers';
-import {EvmWallet} from './types.js';
+import { ethers, TypedDataDomain, TypedDataField } from "ethers";
+import { EvmWallet } from "./types.js";
 
 /**
  * Configuration for the Ethereum provider
@@ -13,8 +13,8 @@ interface ProviderConfig {
  * Default provider configuration for Ethereum mainnet
  */
 const defaultProviderConfig: ProviderConfig = {
-  url: 'http://localhost:8545',
-  network: 1337
+  url: "http://localhost:8545",
+  network: 1337,
 };
 
 /**
@@ -32,12 +32,12 @@ export class EvmWalletImpl implements EvmWallet {
    */
   constructor(
     privateKeyHex: string,
-    providerConfig: ProviderConfig = defaultProviderConfig
+    providerConfig: ProviderConfig = defaultProviderConfig,
   ) {
     // Ensure the private key has the '0x' prefix
-    const cleanPrivateKeyHex = privateKeyHex.startsWith('0x')
+    const cleanPrivateKeyHex = privateKeyHex.startsWith("0x")
       ? privateKeyHex
-      : '0x' + privateKeyHex;
+      : "0x" + privateKeyHex;
 
     this._chainId = Number(providerConfig.network);
 
@@ -66,7 +66,7 @@ export class EvmWalletImpl implements EvmWallet {
    */
   static fromWallet(
     wallet: ethers.Wallet,
-    providerConfig: ProviderConfig = defaultProviderConfig
+    providerConfig: ProviderConfig = defaultProviderConfig,
   ): EvmWalletImpl {
     return new EvmWalletImpl(wallet.privateKey, providerConfig);
   }
@@ -77,7 +77,7 @@ export class EvmWalletImpl implements EvmWallet {
    * @returns A new EvmWalletImpl instance
    */
   static createRandom(
-    providerConfig: ProviderConfig = defaultProviderConfig
+    providerConfig: ProviderConfig = defaultProviderConfig,
   ): EvmWalletImpl {
     const wallet = ethers.Wallet.createRandom();
     return new EvmWalletImpl(wallet.privateKey, providerConfig);
@@ -107,16 +107,16 @@ export class EvmWalletImpl implements EvmWallet {
   async signTypedData(
     domain: TypedDataDomain,
     types: Record<string, Array<TypedDataField>>,
-    value: Record<string, any>
+    value: Record<string, any>,
   ): Promise<string> {
     try {
       // Sign the typed data using ethers.js
       const primaryType = Object.keys(types).filter(
-        (t) => t !== 'EIP712Domain'
-      )[0]
+        (t) => t !== "EIP712Domain",
+      )[0];
       const typesToSign = {
-        [primaryType]: types[primaryType]
-      }
+        [primaryType]: types[primaryType],
+      };
 
       return await this.wallet.signTypedData(domain, typesToSign, value);
     } catch (e: any) {
@@ -138,7 +138,7 @@ export class EvmWalletImpl implements EvmWallet {
       // Make a read-only call using the provider
       return await this.provider.call({
         to,
-        data
+        data,
       });
     } catch (e: any) {
       console.error("Failed to make contract call:", e);
@@ -153,7 +153,11 @@ export class EvmWalletImpl implements EvmWallet {
    * @param data Optional data for the transaction
    * @returns Promise resolving to the transaction hash
    */
-  async sendTransaction(to: string, value: bigint, data?: string): Promise<string> {
+  async sendTransaction(
+    to: string,
+    value: bigint,
+    data?: string,
+  ): Promise<string> {
     console.log(`EVM Wallet: Sending ${value} to ${to}`);
     if (data) {
       console.log("Transaction data:", data);
@@ -163,7 +167,7 @@ export class EvmWalletImpl implements EvmWallet {
       const tx = {
         to,
         value: BigInt(value.toString()),
-        data: data || '0x'
+        data: data || "0x",
       };
 
       // Send transaction
@@ -180,11 +184,11 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   async waitForTransactionReceipt(txHash: string): Promise<void> {
-    await this.wallet.provider?.waitForTransaction(txHash)
+    await this.wallet.provider?.waitForTransaction(txHash);
   }
 
   async switchChain(chainId: number): Promise<void> {
-    this._chainId = chainId
+    this._chainId = chainId;
   }
 
   /**
@@ -205,7 +209,7 @@ export class EvmWalletImpl implements EvmWallet {
         from: this.address,
         to,
         value: BigInt(value.toString()),
-        data: data || '0x'
+        data: data || "0x",
       };
 
       // Estimate gas

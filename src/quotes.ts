@@ -1,64 +1,69 @@
-import {absBigInt, bigintToScaledDecimal, minBigInt, scaledDecimalToBigint} from "./utils.js";
-import {FeeRates, MarketWithSymbolInfos, OrderSide} from "./types.js";
+import {
+  absBigInt,
+  bigintToScaledDecimal,
+  minBigInt,
+  scaledDecimalToBigint,
+} from "./utils.js";
+import { FeeRates, MarketWithSymbolInfos, OrderSide } from "./types.js";
 import {
   AmmState,
   BondingCurveAmmState,
   ConstantProductAmmState,
   LiquidityPoolState,
-  OrderBook
+  OrderBook,
 } from "./websocketMessages.js";
-import {adjustQuoteToExcludeFee, calculateFee} from "./fees.js";
+import { adjustQuoteToExcludeFee, calculateFee } from "./fees.js";
 import {
   baseAmountToGetForQuoteAmountAtClobMarket,
   baseAmountToSellToGetQuoteAmountAtClobMarket,
-  quoteAmountToGetFromSellingBaseAmountAtClobMarket
+  quoteAmountToGetFromSellingBaseAmountAtClobMarket,
 } from "./clob.js";
 import { Decimal } from "decimal.js";
 
 export type AdapterMarketState = {
-  market: MarketWithSymbolInfos
-  orderBook: OrderBook
-  feeRates: FeeRates
-}
+  market: MarketWithSymbolInfos;
+  orderBook: OrderBook;
+  feeRates: FeeRates;
+};
 
 export function quoteAmountRequiredForBuyingBaseIncludingFee(
   baseAmount: bigint,
   market: MarketWithSymbolInfos,
   ammState: AmmState,
-  adapterMarketState: AdapterMarketState | null = null
+  adapterMarketState: AdapterMarketState | null = null,
 ): bigint | null {
   if (baseAmount === 0n) {
-    return 0n
+    return 0n;
   }
 
   const baseAmountDecimal = bigintToScaledDecimal(
     baseAmount,
-    market.baseSymbol.decimals
-  )
+    market.baseSymbol.decimals,
+  );
 
-  let quoteRequired: bigint
+  let quoteRequired: bigint;
 
   switch (ammState.type) {
-    case 'BondingCurve': {
+    case "BondingCurve": {
       const realBaseReserves = bigintToScaledDecimal(
         ammState.realBaseReserves,
-        market.baseSymbol.decimals
-      )
+        market.baseSymbol.decimals,
+      );
       const safeAmount = baseAmountDecimal.gt(realBaseReserves)
         ? realBaseReserves
-        : baseAmountDecimal
-      const cost = bondingCurveCostFor(safeAmount, market, ammState)
-      quoteRequired = cost + calculateFee(cost, ammState.feeRate)
-      break
+        : baseAmountDecimal;
+      const cost = bondingCurveCostFor(safeAmount, market, ammState);
+      quoteRequired = cost + calculateFee(cost, ammState.feeRate);
+      break;
     }
-    case 'ConstantProduct': {
-      const bestBuyEstimate = getCpBestBuyEstimate(baseAmount, ammState)
+    case "ConstantProduct": {
+      const bestBuyEstimate = getCpBestBuyEstimate(baseAmount, ammState);
       if (!bestBuyEstimate) {
-        return null
+        return null;
       }
 
-      quoteRequired = bestBuyEstimate.notional + bestBuyEstimate.fee
-      break
+      quoteRequired = bestBuyEstimate.notional + bestBuyEstimate.fee;
+      break;
     }
   }
 
@@ -67,10 +72,10 @@ export function quoteAmountRequiredForBuyingBaseIncludingFee(
       quoteRequired,
       adapterMarketState.market,
       adapterMarketState.orderBook,
-      adapterMarketState.feeRates
-    )
+      adapterMarketState.feeRates,
+    );
   } else {
-    return quoteRequired
+    return quoteRequired;
   }
 }
 
@@ -78,39 +83,39 @@ export function quoteAmountMinusFeeToReceiveForSellingBase(
   baseAmount: bigint,
   market: MarketWithSymbolInfos,
   ammState: AmmState,
-  adapterMarketState: AdapterMarketState | null = null
+  adapterMarketState: AdapterMarketState | null = null,
 ): bigint | null {
   if (baseAmount === 0n) {
-    return 0n
+    return 0n;
   }
 
   const baseAmountDecimal = bigintToScaledDecimal(
     baseAmount,
-    market.baseSymbol.decimals
-  )
+    market.baseSymbol.decimals,
+  );
 
-  let quoteToReceive: bigint
+  let quoteToReceive: bigint;
 
   switch (ammState.type) {
-    case 'BondingCurve': {
+    case "BondingCurve": {
       const cost = bondingCurveCostFor(
         baseAmountDecimal.neg(),
         market,
-        ammState
-      )
-      quoteToReceive = cost - calculateFee(cost, ammState.feeRate)
-      break
+        ammState,
+      );
+      quoteToReceive = cost - calculateFee(cost, ammState.feeRate);
+      break;
     }
-    case 'ConstantProduct': {
-      const bestSellEstimate = getCpBestSellEstimate(baseAmount, ammState)
+    case "ConstantProduct": {
+      const bestSellEstimate = getCpBestSellEstimate(baseAmount, ammState);
       if (!bestSellEstimate) {
-        return null
+        return null;
       }
 
       quoteToReceive = absBigInt(
-        bestSellEstimate.notional - bestSellEstimate.fee
-      )
-      break
+        bestSellEstimate.notional - bestSellEstimate.fee,
+      );
+      break;
     }
   }
 
@@ -119,10 +124,10 @@ export function quoteAmountMinusFeeToReceiveForSellingBase(
       quoteToReceive,
       adapterMarketState.market,
       adapterMarketState.orderBook,
-      adapterMarketState.feeRates
-    )
+      adapterMarketState.feeRates,
+    );
   } else {
-    return quoteToReceive
+    return quoteToReceive;
   }
 }
 
@@ -130,61 +135,61 @@ export function baseAmountToReceiveForSellingQuoteIncludingFee(
   quoteAmount: bigint,
   market: { baseDecimals: number; quoteDecimals: number },
   ammState: AmmState,
-  adapterMarketState: AdapterMarketState | null = null
+  adapterMarketState: AdapterMarketState | null = null,
 ): bigint | null {
   const actualQuoteAmount = adapterMarketState
     ? // if adapter is provided, we assume quoteAmount is in adapter market base symbol
-    quoteAmountToGetFromSellingBaseAmountAtClobMarket(
-      quoteAmount,
-      adapterMarketState.market,
-      adapterMarketState.orderBook,
-      adapterMarketState.feeRates
-    )
-    : quoteAmount
+      quoteAmountToGetFromSellingBaseAmountAtClobMarket(
+        quoteAmount,
+        adapterMarketState.market,
+        adapterMarketState.orderBook,
+        adapterMarketState.feeRates,
+      )
+    : quoteAmount;
 
   if (actualQuoteAmount == null) {
-    return null
+    return null;
   }
 
   switch (ammState.type) {
-    case 'BondingCurve': {
+    case "BondingCurve": {
       const virtualQuoteReserves = bigintToScaledDecimal(
         ammState.virtualQuoteReserves,
-        market.quoteDecimals
-      )
+        market.quoteDecimals,
+      );
       const virtualBaseReserves = bigintToScaledDecimal(
         ammState.virtualBaseReserves,
-        market.baseDecimals
-      )
+        market.baseDecimals,
+      );
       const quoteAmountLessFeeDecimal = bigintToScaledDecimal(
         adjustQuoteToExcludeFee(actualQuoteAmount, ammState.feeRate),
-        market.quoteDecimals
-      )
+        market.quoteDecimals,
+      );
       const newQuoteReserves = virtualQuoteReserves.plus(
-        quoteAmountLessFeeDecimal
-      )
-      const product = virtualQuoteReserves.mul(virtualBaseReserves)
-      const newBaseReserves = product.div(newQuoteReserves)
+        quoteAmountLessFeeDecimal,
+      );
+      const product = virtualQuoteReserves.mul(virtualBaseReserves);
+      const newBaseReserves = product.div(newQuoteReserves);
       const rawBase = scaledDecimalToBigint(
         virtualBaseReserves.sub(newBaseReserves),
-        market.baseDecimals
-      )
-      return minBigInt(rawBase, ammState.realBaseReserves)
+        market.baseDecimals,
+      );
+      return minBigInt(rawBase, ammState.realBaseReserves);
     }
-    case 'ConstantProduct': {
-      let largestBaseAmount = 0n
+    case "ConstantProduct": {
+      let largestBaseAmount = 0n;
 
       ammState.liquidityPools.forEach((pool) => {
         const estimate = baseAmountToRemoveToIncreasePoolQuoteByDelta(
           pool,
-          adjustQuoteToExcludeFee(actualQuoteAmount, pool.feeRate)
-        )
+          adjustQuoteToExcludeFee(actualQuoteAmount, pool.feeRate),
+        );
         if (estimate != null && estimate > largestBaseAmount) {
-          largestBaseAmount = estimate
+          largestBaseAmount = estimate;
         }
-      })
+      });
 
-      return largestBaseAmount == 0n ? null : largestBaseAmount
+      return largestBaseAmount == 0n ? null : largestBaseAmount;
     }
   }
 }
@@ -192,150 +197,150 @@ export function baseAmountToReceiveForSellingQuoteIncludingFee(
 function bondingCurveCostFor(
   amount: Decimal,
   market: MarketWithSymbolInfos,
-  bondingCurve: BondingCurveAmmState
+  bondingCurve: BondingCurveAmmState,
 ): bigint {
   const virtualQuoteReserves = bigintToScaledDecimal(
     bondingCurve.virtualQuoteReserves,
-    market.quoteSymbol.decimals
-  )
+    market.quoteSymbol.decimals,
+  );
   const virtualBaseReserves = bigintToScaledDecimal(
     bondingCurve.virtualBaseReserves,
-    market.baseSymbol.decimals
-  )
+    market.baseSymbol.decimals,
+  );
   return scaledDecimalToBigint(
     amount
       .abs()
       .mul(virtualQuoteReserves.div(virtualBaseReserves.add(amount.neg())))
       .plus(bigintToScaledDecimal(1n, market.baseSymbol.decimals)),
-    market.quoteSymbol.decimals
-  )
+    market.quoteSymbol.decimals,
+  );
 }
 
 type LiquidityPoolTradeEstimate = {
-  pool: LiquidityPoolState
-  baseAmount: bigint
-  notional: bigint
-  fee: bigint
-  side: OrderSide
-}
+  pool: LiquidityPoolState;
+  baseAmount: bigint;
+  notional: bigint;
+  fee: bigint;
+  side: OrderSide;
+};
 
 export function getCpBestBuyEstimate(
   buyAmount: bigint,
-  ammState: ConstantProductAmmState
+  ammState: ConstantProductAmmState,
 ): LiquidityPoolTradeEstimate | null {
-  const possibleTrades: LiquidityPoolTradeEstimate[] = []
+  const possibleTrades: LiquidityPoolTradeEstimate[] = [];
 
   ammState.liquidityPools.forEach((pool) => {
-    const estimate = estimatePoolBaseLiquidityAdjustment(pool, -buyAmount)
+    const estimate = estimatePoolBaseLiquidityAdjustment(pool, -buyAmount);
     if (estimate) {
       possibleTrades.push({
         pool,
         baseAmount: absBigInt(estimate.baseDelta),
         notional: estimate.quoteDelta,
         fee: estimate.fee,
-        side: 'Buy'
-      })
+        side: "Buy",
+      });
     }
-  })
+  });
 
   if (possibleTrades.length == 0) {
-    return null
+    return null;
   }
 
-  let bestTrade: LiquidityPoolTradeEstimate = possibleTrades[0]
+  let bestTrade: LiquidityPoolTradeEstimate = possibleTrades[0];
 
   possibleTrades.forEach((trade) => {
     if (trade.notional + trade.fee < bestTrade.notional + bestTrade.fee) {
-      bestTrade = trade
+      bestTrade = trade;
     }
-  })
+  });
 
-  return bestTrade
+  return bestTrade;
 }
 
 export function getCpBestSellEstimate(
   sellAmount: bigint,
-  ammState: ConstantProductAmmState
+  ammState: ConstantProductAmmState,
 ): LiquidityPoolTradeEstimate | null {
-  const possibleTrades: LiquidityPoolTradeEstimate[] = []
+  const possibleTrades: LiquidityPoolTradeEstimate[] = [];
 
   ammState.liquidityPools.forEach((pool) => {
-    const estimate = estimatePoolBaseLiquidityAdjustment(pool, sellAmount)
+    const estimate = estimatePoolBaseLiquidityAdjustment(pool, sellAmount);
     if (estimate) {
       possibleTrades.push({
         pool,
         baseAmount: estimate.baseDelta,
         notional: absBigInt(estimate.quoteDelta),
         fee: absBigInt(estimate.fee),
-        side: 'Sell'
-      })
+        side: "Sell",
+      });
     }
-  })
+  });
 
   if (possibleTrades.length == 0) {
-    return null
+    return null;
   }
 
-  let bestTrade: LiquidityPoolTradeEstimate = possibleTrades[0]
+  let bestTrade: LiquidityPoolTradeEstimate = possibleTrades[0];
 
   possibleTrades.forEach((trade) => {
     if (trade.notional + trade.fee > bestTrade.notional - bestTrade.fee) {
-      bestTrade = trade
+      bestTrade = trade;
     }
-  })
+  });
 
-  return bestTrade
+  return bestTrade;
 }
 
 type LiquidityAdjustmentEstimate = {
-  baseDelta: bigint
-  quoteDelta: bigint
-  fee: bigint
-}
+  baseDelta: bigint;
+  quoteDelta: bigint;
+  fee: bigint;
+};
 
 function estimatePoolBaseLiquidityAdjustment(
   lp: LiquidityPoolState,
-  baseDelta: bigint
+  baseDelta: bigint,
 ): LiquidityAdjustmentEstimate | null {
-  const newBaseLiquidity = lp.baseLiquidity + baseDelta
+  const newBaseLiquidity = lp.baseLiquidity + baseDelta;
   if (newBaseLiquidity <= 0n) {
-    return null
+    return null;
   }
-  const product = lp.baseLiquidity * lp.quoteLiquidity
-  const newQuoteLiquidity = product / newBaseLiquidity
+  const product = lp.baseLiquidity * lp.quoteLiquidity;
+  const newQuoteLiquidity = product / newBaseLiquidity;
   if (newQuoteLiquidity == 0n) {
-    return null
+    return null;
   }
-  const quoteDelta = newQuoteLiquidity - lp.quoteLiquidity + 1n
+  const quoteDelta = newQuoteLiquidity - lp.quoteLiquidity + 1n;
   return {
     baseDelta,
     quoteDelta,
-    fee: calculateFee(quoteDelta, lp.feeRate)
-  }
+    fee: calculateFee(quoteDelta, lp.feeRate),
+  };
 }
 
 function baseAmountToRemoveToIncreasePoolQuoteByDelta(
   lp: LiquidityPoolState,
-  quoteDelta: bigint
+  quoteDelta: bigint,
 ): bigint | null {
-  const newQuoteLiquidity = lp.quoteLiquidity + quoteDelta
-  const product = lp.baseLiquidity * lp.quoteLiquidity
-  const newBaseLiquidity = product / newQuoteLiquidity
+  const newQuoteLiquidity = lp.quoteLiquidity + quoteDelta;
+  const product = lp.baseLiquidity * lp.quoteLiquidity;
+  const newBaseLiquidity = product / newQuoteLiquidity;
   if (newBaseLiquidity == 0n) {
-    return null
+    return null;
   }
-  const baseDeltaRoughEstimate = newBaseLiquidity - lp.baseLiquidity
+  const baseDeltaRoughEstimate = newBaseLiquidity - lp.baseLiquidity;
   const actualQuoteDelta = estimatePoolBaseLiquidityAdjustment(
     lp,
-    baseDeltaRoughEstimate
-  )?.quoteDelta
+    baseDeltaRoughEstimate,
+  )?.quoteDelta;
   if (actualQuoteDelta == null) {
-    return null
+    return null;
   }
 
-  const baseDeltaRoughEstimateAbsoluteValue = absBigInt(baseDeltaRoughEstimate)
+  const baseDeltaRoughEstimateAbsoluteValue = absBigInt(baseDeltaRoughEstimate);
   if (actualQuoteDelta == quoteDelta) {
-    return baseDeltaRoughEstimateAbsoluteValue
+    return baseDeltaRoughEstimateAbsoluteValue;
   }
 
   // Use binary search to find the precise base amount to be removed from the pool
@@ -343,35 +348,35 @@ function baseAmountToRemoveToIncreasePoolQuoteByDelta(
   let [left, right] =
     actualQuoteDelta < quoteDelta
       ? [
-        baseDeltaRoughEstimateAbsoluteValue,
-        baseDeltaRoughEstimateAbsoluteValue * 2n
-      ]
+          baseDeltaRoughEstimateAbsoluteValue,
+          baseDeltaRoughEstimateAbsoluteValue * 2n,
+        ]
       : [
-        baseDeltaRoughEstimateAbsoluteValue / 2n,
-        baseDeltaRoughEstimateAbsoluteValue
-      ]
+          baseDeltaRoughEstimateAbsoluteValue / 2n,
+          baseDeltaRoughEstimateAbsoluteValue,
+        ];
 
-  let lastAcceptableEstimate: LiquidityAdjustmentEstimate | null = null
+  let lastAcceptableEstimate: LiquidityAdjustmentEstimate | null = null;
 
   while (right - left > 1n) {
-    const middle = (left + right) / 2n
+    const middle = (left + right) / 2n;
 
-    const estimate = estimatePoolBaseLiquidityAdjustment(lp, -middle)
+    const estimate = estimatePoolBaseLiquidityAdjustment(lp, -middle);
     if (estimate == null) {
-      return null
+      return null;
     }
     if (estimate.quoteDelta == quoteDelta) {
-      lastAcceptableEstimate = estimate
-      break
+      lastAcceptableEstimate = estimate;
+      break;
     } else if (estimate.quoteDelta < quoteDelta) {
-      lastAcceptableEstimate = estimate
-      left = middle
+      lastAcceptableEstimate = estimate;
+      left = middle;
     } else {
-      right = middle
+      right = middle;
     }
   }
 
   return lastAcceptableEstimate
     ? absBigInt(lastAcceptableEstimate.baseDelta)
-    : null
+    : null;
 }

@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import { z } from "zod";
 import { Decimal } from "decimal.js";
-import {TypedDataDomain, TypedDataField} from "ethers";
+import { TypedDataDomain, TypedDataField } from "ethers";
 
 /**
  * Base interface for all wallet types
@@ -21,8 +21,12 @@ export interface EvmWallet extends BaseWallet {
    * @param message The EIP-712 message to sign
    * @returns Promise resolving to the signature
    */
-  signTypedData: (domain: TypedDataDomain, types: Record<string, Array<TypedDataField>>, value: Record<string, any>) => Promise<string>;
-  
+  signTypedData: (
+    domain: TypedDataDomain,
+    types: Record<string, Array<TypedDataField>>,
+    value: Record<string, any>,
+  ) => Promise<string>;
+
   /**
    * Execute a read-only contract call
    * @param to The contract address
@@ -30,7 +34,7 @@ export interface EvmWallet extends BaseWallet {
    * @returns Promise resolving to the call result
    */
   call: (to: string, data: string) => Promise<string>;
-  
+
   /**
    * Send a transaction
    * @param to The recipient address
@@ -38,8 +42,12 @@ export interface EvmWallet extends BaseWallet {
    * @param data Optional transaction data
    * @returns Promise resolving to the transaction hash
    */
-  sendTransaction: (to: string, value: bigint, data?: string) => Promise<string>;
-  
+  sendTransaction: (
+    to: string,
+    value: bigint,
+    data?: string,
+  ) => Promise<string>;
+
   /**
    * Estimate gas cost for a transaction
    * @param to The recipient address
@@ -59,14 +67,14 @@ export interface EvmWallet extends BaseWallet {
  */
 export interface BitcoinWallet extends BaseWallet {
   /** The ordinalsAddress */
-  ordinalsAddress: string,
+  ordinalsAddress: string;
   /**
    * Sign a message
    * @param message The message to sign
    * @returns Promise resolving to the signature
    */
   signMessage: (address: string, message: string) => Promise<string>;
-  
+
   /**
    * Send a Bitcoin transaction
    * @param to The recipient address
@@ -74,7 +82,7 @@ export interface BitcoinWallet extends BaseWallet {
    * @returns Promise resolving to the transaction hash
    */
   sendTransaction: (to: string, amount: bigint) => Promise<string>;
-  
+
   /**
    * Estimate the fee for a Bitcoin transaction
    * @returns Promise resolving to the estimated fee in satoshis
@@ -87,15 +95,17 @@ declare global {
   }
 }
 
-BigInt.prototype.toJSON = function () { return Number(this) }
+BigInt.prototype.toJSON = function () {
+  return Number(this);
+};
 
 const AuthorizeWalletRequestSchema = z.object({
   authorizedAddress: z.string(),
   chainId: z.string(),
   address: z.string(),
   timestamp: z.string(),
-  signature: z.string()
-})
+  signature: z.string(),
+});
 
 const SetOrdinalsAddressRequestSchema = z.object({
   ordinalsAddress: z.string(),
@@ -103,16 +113,15 @@ const SetOrdinalsAddressRequestSchema = z.object({
     .object({
       addressOwnershipProof: z.string(),
       authorizationProof: z.string(),
-      timestamp: z.string()
+      timestamp: z.string(),
     })
-    .nullable()
-})
-
+    .nullable(),
+});
 
 /**
  * Wallet network type
  */
-export const WalletNetworkTypeSchema = z.enum(['Bitcoin', 'Evm']);
+export const WalletNetworkTypeSchema = z.enum(["Bitcoin", "Evm"]);
 export type WalletNetworkType = z.infer<typeof WalletNetworkTypeSchema>;
 
 /**
@@ -120,7 +129,7 @@ export type WalletNetworkType = z.infer<typeof WalletNetworkTypeSchema>;
  */
 export const AuthorizedAddressSchema = z.object({
   address: z.string(),
-  networkType: WalletNetworkTypeSchema
+  networkType: WalletNetworkTypeSchema,
 });
 export type AuthorizedAddress = z.infer<typeof AuthorizedAddressSchema>;
 
@@ -131,16 +140,15 @@ export const AccountConfigurationSchema = z.object({
   id: z.string(),
   newSymbols: z.array(z.any()), // We'll define SymbolSchema later
   associatedSymbols: z.array(z.any()), // We'll define SymbolSchema later
-  role: z.enum(['User', 'Admin']),
+  role: z.enum(["User", "Admin"]),
   authorizedAddresses: z.array(AuthorizedAddressSchema),
   nickName: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   inviteCode: z.string(),
   ordinalsAddress: z.string().nullable(),
-  funkybits: z.any() // We'll define decimal schema later
+  funkybits: z.any(), // We'll define decimal schema later
 });
 export type AccountConfiguration = z.infer<typeof AccountConfigurationSchema>;
-
 
 export const decimal = () =>
   z
@@ -149,50 +157,50 @@ export const decimal = () =>
     .or(z.number())
     .transform((value, ctx) => {
       try {
-        return new Decimal(value)
+        return new Decimal(value);
       } catch (error) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `${value} can't be parsed into Decimal: ${error}`
-        })
-        return z.NEVER
+          message: `${value} can't be parsed into Decimal: ${error}`,
+        });
+        return z.NEVER;
       }
-    })
-export const FEE_RATE_PIPS_MAX_VALUE = 1000000
+    });
+export const FEE_RATE_PIPS_MAX_VALUE = 1000000;
 
 const feeRatePips = () =>
   decimal().transform((decimalFee) => {
-    return BigInt(decimalFee.mul(FEE_RATE_PIPS_MAX_VALUE).toNumber())
-  })
+    return BigInt(decimalFee.mul(FEE_RATE_PIPS_MAX_VALUE).toNumber());
+  });
 
 export const EvmAddressSchema = z.custom<`0x${string}`>((val: unknown) =>
-  /^0x/.test(val as string)
-)
-export type EvmAddressType = z.infer<typeof EvmAddressSchema>
+  /^0x/.test(val as string),
+);
+export type EvmAddressType = z.infer<typeof EvmAddressSchema>;
 export const evmAddress = (address: string): EvmAddressType => {
   // will throw if the address is invalid
-  return EvmAddressSchema.parse(address)
-}
-export const AddressSchema = z.string().min(1)
-export type AddressType = z.infer<typeof AddressSchema>
+  return EvmAddressSchema.parse(address);
+};
+export const AddressSchema = z.string().min(1);
+export type AddressType = z.infer<typeof AddressSchema>;
 
-export const UserIdSchema = z.string()
-export type UserId = z.infer<typeof UserIdSchema>
+export const UserIdSchema = z.string();
+export type UserId = z.infer<typeof UserIdSchema>;
 
 const ContractSchema = z.object({
   name: z.string(),
   address: AddressSchema,
   nativeDepositAddress: AddressSchema,
-  tokenDepositAddress: AddressSchema
-})
+  tokenDepositAddress: AddressSchema,
+});
 
-export type Contract = z.infer<typeof ContractSchema>
+export type Contract = z.infer<typeof ContractSchema>;
 
 const CoinCreatorRefSchema = z.object({
   name: z.string(),
-  userId: UserIdSchema
-})
-export type CoinCreatorRef = z.infer<typeof CoinCreatorRefSchema>
+  userId: UserIdSchema,
+});
+export type CoinCreatorRef = z.infer<typeof CoinCreatorRefSchema>;
 
 const SymbolSchema = z.object({
   name: z.string(),
@@ -204,10 +212,10 @@ const SymbolSchema = z.object({
   withdrawalFee: z.coerce.bigint(),
   chainId: z.string(),
   chainName: z.string(),
-  nameOnChain: z.string().nullable().optional()
-})
+  nameOnChain: z.string().nullable().optional(),
+});
 
-export type Symbol = z.infer<typeof SymbolSchema>
+export type Symbol = z.infer<typeof SymbolSchema>;
 
 const ChainSchema = z.object({
   id: z.string(),
@@ -216,24 +224,24 @@ const ChainSchema = z.object({
   symbols: z.array(SymbolSchema),
   jsonRpcUrl: z.string(),
   blockExplorerNetName: z.string(),
-  blockExplorerUrl: z.string()
-})
-export type Chain = z.infer<typeof ChainSchema>
+  blockExplorerUrl: z.string(),
+});
+export type Chain = z.infer<typeof ChainSchema>;
 
 const MarketSchema = z.object({
-  type: z.literal('Clob'),
+  type: z.literal("Clob"),
   id: z.string(),
   baseSymbol: z.string(),
   quoteSymbol: z.string(),
   tickSize: decimal(),
   lastPrice: decimal(),
   minFee: z.coerce.bigint(),
-  feeRate: decimal()
-})
-export type Market = z.infer<typeof MarketSchema>
+  feeRate: decimal(),
+});
+export type Market = z.infer<typeof MarketSchema>;
 
-const MarketTypeSchema = z.enum(['Clob', 'BondingCurve', 'Amm'])
-export type MarketType = z.infer<typeof MarketTypeSchema>
+const MarketTypeSchema = z.enum(["Clob", "BondingCurve", "Amm"]);
+export type MarketType = z.infer<typeof MarketTypeSchema>;
 
 export const MarketWithSymbolInfosSchema = z.object({
   id: z.string(),
@@ -243,65 +251,64 @@ export const MarketWithSymbolInfosSchema = z.object({
   lastPrice: decimal(),
   minFee: z.coerce.bigint(),
   feeRate: decimal(),
-  type: MarketTypeSchema
-})
+  type: MarketTypeSchema,
+});
 
-export type MarketWithSymbolInfos = z.infer<typeof MarketWithSymbolInfosSchema>
+export type MarketWithSymbolInfos = z.infer<typeof MarketWithSymbolInfosSchema>;
 
 const FeeRatesSchema = z.object({
   maker: feeRatePips(),
-  taker: feeRatePips()
-})
-export type FeeRates = z.infer<typeof FeeRatesSchema>
+  taker: feeRatePips(),
+});
+export type FeeRates = z.infer<typeof FeeRatesSchema>;
 
 const SetFeeRatesSchema = z.object({
   maker: z.coerce.bigint(),
-  taker: z.coerce.bigint()
-})
+  taker: z.coerce.bigint(),
+});
 
-export type SetFeeRates = z.infer<typeof SetFeeRatesSchema>
+export type SetFeeRates = z.infer<typeof SetFeeRatesSchema>;
 
 export const ConfigurationApiResponseSchema = z.object({
   chains: z.array(ChainSchema),
   markets: z.array(MarketSchema),
   feeRates: FeeRatesSchema,
-  minimumRune: z.string()
-})
+  minimumRune: z.string(),
+});
 export type ConfigurationApiResponse = z.infer<
   typeof ConfigurationApiResponseSchema
->
+>;
 
 export const AccountConfigurationApiResponseSchema = z.object({
   id: UserIdSchema,
   newSymbols: z.array(SymbolSchema),
   associatedSymbols: z.array(SymbolSchema),
-  role: z.enum(['User', 'Admin']),
+  role: z.enum(["User", "Admin"]),
   authorizedAddresses: z.array(AuthorizedAddressSchema),
   nickName: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   inviteCode: z.string(),
   ordinalsAddress: AddressSchema.nullable(),
-  funkybits: decimal()
-})
+  funkybits: decimal(),
+});
 export type AccountConfigurationApiResponse = z.infer<
   typeof AccountConfigurationApiResponseSchema
->
+>;
 
 export const ApiErrorsSchema = z.object({
   code: z.string(),
   message: z.string(),
-  details: z.record(z.unknown()).optional()
+  details: z.record(z.unknown()).optional(),
 });
-
 
 export const CreateDepositApiRequestSchema = z.object({
   symbol: z.string(),
   amount: z.coerce.bigint(),
-  txHash: z.string()
-})
+  txHash: z.string(),
+});
 
-const DepositStatusSchema = z.enum(['Pending', 'Complete', 'Failed'])
-export type DepositStatus = z.infer<typeof DepositStatusSchema>
+const DepositStatusSchema = z.enum(["Pending", "Complete", "Failed"]);
+export type DepositStatus = z.infer<typeof DepositStatusSchema>;
 
 const DepositSchema = z.object({
   id: z.string(),
@@ -310,33 +317,33 @@ const DepositSchema = z.object({
   amount: z.coerce.bigint(),
   status: DepositStatusSchema,
   error: z.string().nullable(),
-  createdAt: z.coerce.date()
-})
-export type Deposit = z.infer<typeof DepositSchema>
+  createdAt: z.coerce.date(),
+});
+export type Deposit = z.infer<typeof DepositSchema>;
 
 export const DepositApiResponseSchema = z.object({
-  deposit: DepositSchema
-})
+  deposit: DepositSchema,
+});
 
 const ListDepositsApiResponseSchema = z.object({
-  deposits: z.array(DepositSchema)
-})
+  deposits: z.array(DepositSchema),
+});
 
 export const CreateWithdrawalApiRequestSchema = z.object({
   symbol: z.string(),
   amount: z.coerce.bigint(),
   nonce: z.number(),
-  signature: z.string()
-})
+  signature: z.string(),
+});
 
 const WithdrawalStatusSchema = z.enum([
-  'Pending',
-  'Sequenced',
-  'Settling',
-  'Complete',
-  'Failed'
-])
-export type WithdrawalStatus = z.infer<typeof WithdrawalStatusSchema>
+  "Pending",
+  "Sequenced",
+  "Settling",
+  "Complete",
+  "Failed",
+]);
+export type WithdrawalStatus = z.infer<typeof WithdrawalStatusSchema>;
 const WithdrawalSchema = z.object({
   id: z.string(),
   symbol: z.string(),
@@ -345,33 +352,33 @@ const WithdrawalSchema = z.object({
   status: WithdrawalStatusSchema,
   error: z.string().nullable(),
   createdAt: z.coerce.date(),
-  fee: z.coerce.bigint()
-})
-export type Withdrawal = z.infer<typeof WithdrawalSchema>
+  fee: z.coerce.bigint(),
+});
+export type Withdrawal = z.infer<typeof WithdrawalSchema>;
 
 export const WithdrawalApiResponseSchema = z.object({
-  withdrawal: WithdrawalSchema
-})
+  withdrawal: WithdrawalSchema,
+});
 
 const ListWithdrawalsApiResponseSchema = z.object({
-  withdrawals: z.array(WithdrawalSchema)
-})
+  withdrawals: z.array(WithdrawalSchema),
+});
 
-export const SymbolLinkTypeSchema = z.enum(['Web', 'X', 'Telegram', 'Discord'])
+export const SymbolLinkTypeSchema = z.enum(["Web", "X", "Telegram", "Discord"]);
 
-export type SymbolLinkType = z.infer<typeof SymbolLinkTypeSchema>
+export type SymbolLinkType = z.infer<typeof SymbolLinkTypeSchema>;
 
 const SymbolLinkSchema = z.object({
   type: SymbolLinkTypeSchema,
-  url: z.string()
-})
+  url: z.string(),
+});
 
 const CoinStatus = z.enum([
-  'Pending',
-  'BondingCurveAmm',
-  'Graduating',
-  'ConstantProductAmm'
-])
+  "Pending",
+  "BondingCurveAmm",
+  "Graduating",
+  "ConstantProductAmm",
+]);
 
 export const CoinSchema = z.object({
   symbol: SymbolSchema,
@@ -391,29 +398,29 @@ export const CoinSchema = z.object({
   h24MinPoolYield: decimal(),
   h24MaxPoolYield: decimal(),
   lastPoolCreatedAt: z.coerce.date().nullable(),
-  links: z.array(SymbolLinkSchema)
-})
-export type Coin = z.infer<typeof CoinSchema>
+  links: z.array(SymbolLinkSchema),
+});
+export type Coin = z.infer<typeof CoinSchema>;
 export const ListCoinsApiResponseSchema = z.object({
-  coins: z.array(CoinSchema)
-})
-export type ListCoinsApiResponse = z.infer<typeof ListCoinsApiResponseSchema>
+  coins: z.array(CoinSchema),
+});
+export type ListCoinsApiResponse = z.infer<typeof ListCoinsApiResponseSchema>;
 
 export const CoinsSortOptionSchema = z.enum([
   // home
-  'Trending',
-  'MarketCap',
-  'NewCoins',
-  'Faves',
-  'FunkedUp',
+  "Trending",
+  "MarketCap",
+  "NewCoins",
+  "Faves",
+  "FunkedUp",
   // pools
-  'NewestPool',
-  'Tvl',
-  'H24Volume',
-  'Yield',
-  'H24Fees'
-])
-export type CoinsSortOption = z.infer<typeof CoinsSortOptionSchema>
+  "NewestPool",
+  "Tvl",
+  "H24Volume",
+  "Yield",
+  "H24Fees",
+]);
+export type CoinsSortOption = z.infer<typeof CoinsSortOptionSchema>;
 
 export const CoinPoolsListItemSchema = z.object({
   id: z.string(),
@@ -423,43 +430,43 @@ export const CoinPoolsListItemSchema = z.object({
   h24Volume: decimal(),
   h24Fees: decimal(),
   h24Yield: decimal(),
-  createdAt: z.coerce.date().nullable()
-})
-export type CoinPoolsListItem = z.infer<typeof CoinPoolsListItemSchema>
+  createdAt: z.coerce.date().nullable(),
+});
+export type CoinPoolsListItem = z.infer<typeof CoinPoolsListItemSchema>;
 
 const ListCoinPoolsApiResponseSchema = z.object({
-  pools: z.array(CoinPoolsListItemSchema)
-})
+  pools: z.array(CoinPoolsListItemSchema),
+});
 
-const OrderSideSchema = z.enum(['Buy', 'Sell'])
-export type OrderSide = z.infer<typeof OrderSideSchema>
+const OrderSideSchema = z.enum(["Buy", "Sell"]);
+export type OrderSide = z.infer<typeof OrderSideSchema>;
 
 const FixedAmountSchema = z.object({
-  type: z.literal('fixed'),
-  value: z.coerce.bigint()
-})
+  type: z.literal("fixed"),
+  value: z.coerce.bigint(),
+});
 
 const PercentAmountSchema = z.object({
-  type: z.literal('percent'),
-  value: z.number()
-})
+  type: z.literal("percent"),
+  value: z.number(),
+});
 
-const OrderAmountSchema = z.discriminatedUnion('type', [
+const OrderAmountSchema = z.discriminatedUnion("type", [
   FixedAmountSchema,
-  PercentAmountSchema
-])
-export type OrderAmount = z.infer<typeof OrderAmountSchema>
+  PercentAmountSchema,
+]);
+export type OrderAmount = z.infer<typeof OrderAmountSchema>;
 
 const OrderSlippageToleranceSchema = z.object({
   expectedNotionalWithFee: z.coerce.bigint(),
-  maxDeviation: decimal()
-})
+  maxDeviation: decimal(),
+});
 
-export type ClientOrderId = string
+export type ClientOrderId = string;
 
 export const CreateMarketOrderSchema = z.object({
   nonce: z.string(),
-  type: z.literal('market'),
+  type: z.literal("market"),
   marketId: z.string(),
   side: OrderSideSchema,
   amount: OrderAmountSchema,
@@ -469,13 +476,13 @@ export const CreateMarketOrderSchema = z.object({
   clientOrderId: z.string().nullable(),
   captchaToken: z.string().nullable(),
   slippageTolerance: OrderSlippageToleranceSchema.nullable(),
-  baseTokenContractAddress: z.string().nullable()
-})
-export type CreateMarketOrder = z.infer<typeof CreateMarketOrderSchema>
+  baseTokenContractAddress: z.string().nullable(),
+});
+export type CreateMarketOrder = z.infer<typeof CreateMarketOrderSchema>;
 
 export const CreateBackToBackMarketOrderSchema = z.object({
   nonce: z.string(),
-  type: z.literal('backToBackMarket'),
+  type: z.literal("backToBackMarket"),
   marketId: z.string(),
   adapterMarketId: z.string(),
   side: OrderSideSchema,
@@ -485,15 +492,15 @@ export const CreateBackToBackMarketOrderSchema = z.object({
   verifyingChainId: z.string(),
   clientOrderId: z.string().nullable(),
   captchaToken: z.string().nullable(),
-  slippageTolerance: OrderSlippageToleranceSchema.nullable()
-})
+  slippageTolerance: OrderSlippageToleranceSchema.nullable(),
+});
 export type CreateBackToBackMarketOrder = z.infer<
   typeof CreateBackToBackMarketOrderSchema
->
+>;
 
 export const CreateLimitOrderSchema = z.object({
   nonce: z.string(),
-  type: z.literal('limit'),
+  type: z.literal("limit"),
   marketId: z.string(),
   side: OrderSideSchema,
   amount: OrderAmountSchema,
@@ -502,42 +509,42 @@ export const CreateLimitOrderSchema = z.object({
   signingAddress: z.string(),
   verifyingChainId: z.string(),
   clientOrderId: z.string().nullable(),
-  captchaToken: z.string().nullable()
-})
-export type CreateLimitOrder = z.infer<typeof CreateLimitOrderSchema>
+  captchaToken: z.string().nullable(),
+});
+export type CreateLimitOrder = z.infer<typeof CreateLimitOrderSchema>;
 
-export const CreateOrderRequestSchema = z.discriminatedUnion('type', [
+export const CreateOrderRequestSchema = z.discriminatedUnion("type", [
   CreateMarketOrderSchema,
   CreateLimitOrderSchema,
-  CreateBackToBackMarketOrderSchema
-])
-export type CreateOrderRequest = z.infer<typeof CreateOrderRequestSchema>
+  CreateBackToBackMarketOrderSchema,
+]);
+export type CreateOrderRequest = z.infer<typeof CreateOrderRequestSchema>;
 
-const RequestStatusSchema = z.enum(['Accepted', 'Rejected'])
+const RequestStatusSchema = z.enum(["Accepted", "Rejected"]);
 export const CreateOrderApiResponseSchema = z.object({
   orderId: z.string(),
-  requestStatus: RequestStatusSchema
-})
+  requestStatus: RequestStatusSchema,
+});
 
 const OrderTimingSchema = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date().nullable(),
   closedAt: z.coerce.date().nullable(),
-  sequencerTimeNs: z.coerce.bigint()
-})
+  sequencerTimeNs: z.coerce.bigint(),
+});
 
 const OrderStatusSchema = z.enum([
-  'Open',
-  'Partial',
-  'Filled',
-  'Cancelled',
-  'Expired',
-  'Failed',
-  'Rejected'
-])
-export type OrderStatus = z.infer<typeof OrderStatusSchema>
-const ExecutionRoleSchema = z.enum(['Maker', 'Taker'])
-export type ExecutionRole = z.infer<typeof ExecutionRoleSchema>
+  "Open",
+  "Partial",
+  "Filled",
+  "Cancelled",
+  "Expired",
+  "Failed",
+  "Rejected",
+]);
+export type OrderStatus = z.infer<typeof OrderStatusSchema>;
+const ExecutionRoleSchema = z.enum(["Maker", "Taker"]);
+export type ExecutionRole = z.infer<typeof ExecutionRoleSchema>;
 
 const OrderExecutionSchema = z.object({
   timestamp: z.coerce.date(),
@@ -546,22 +553,22 @@ const OrderExecutionSchema = z.object({
   role: ExecutionRoleSchema,
   feeAmount: z.coerce.bigint(),
   feeSymbol: z.string(),
-  marketId: z.string()
-})
+  marketId: z.string(),
+});
 const MarketOrderSchema = z.object({
   id: z.string(),
-  type: z.literal('market'),
+  type: z.literal("market"),
   status: OrderStatusSchema,
   marketId: z.string(),
   side: OrderSideSchema,
   amount: z.coerce.bigint(),
   executions: z.array(OrderExecutionSchema),
-  timing: OrderTimingSchema
-})
+  timing: OrderTimingSchema,
+});
 
 const LimitOrderSchema = z.object({
   id: z.string(),
-  type: z.literal('limit'),
+  type: z.literal("limit"),
   status: OrderStatusSchema,
   marketId: z.string(),
   side: OrderSideSchema,
@@ -570,51 +577,51 @@ const LimitOrderSchema = z.object({
   originalAmount: z.coerce.bigint(),
   autoReduced: z.boolean(),
   executions: z.array(OrderExecutionSchema),
-  timing: OrderTimingSchema
-})
+  timing: OrderTimingSchema,
+});
 
 const BackToBackMarketOrderSchema = z.object({
   id: z.string(),
-  type: z.literal('backToBackMarket'),
+  type: z.literal("backToBackMarket"),
   status: OrderStatusSchema,
   marketId: z.string(),
   adapterMarketId: z.string(),
   side: OrderSideSchema,
   amount: z.coerce.bigint(),
   executions: z.array(OrderExecutionSchema),
-  timing: OrderTimingSchema
-})
+  timing: OrderTimingSchema,
+});
 
 export const OrderSchema = z
-  .discriminatedUnion('type', [
+  .discriminatedUnion("type", [
     MarketOrderSchema,
     LimitOrderSchema,
-    BackToBackMarketOrderSchema
+    BackToBackMarketOrderSchema,
   ])
   .transform((data) => {
     return {
       ...data,
       isFinal: function (): boolean {
         return (
-          ['Filled', 'Cancelled', 'Expired', 'Failed', 'Rejected'].includes(
-            data.status as string
+          ["Filled", "Cancelled", "Expired", "Failed", "Rejected"].includes(
+            data.status as string,
           ) ||
-          (data.status == 'Partial' &&
-            (data.type === 'market' || data.type === 'backToBackMarket'))
-        )
-      }
-    }
-  })
-export type Order = z.infer<typeof OrderSchema>
+          (data.status == "Partial" &&
+            (data.type === "market" || data.type === "backToBackMarket"))
+        );
+      },
+    };
+  });
+export type Order = z.infer<typeof OrderSchema>;
 
 const TradeSettlementStatusSchema = z.enum([
-  'Pending',
-  'Settling',
-  'FailedSettling',
-  'Completed',
-  'Failed'
-])
-export type TradeSettlementStatus = z.infer<typeof TradeSettlementStatusSchema>
+  "Pending",
+  "Settling",
+  "FailedSettling",
+  "Completed",
+  "Failed",
+]);
+export type TradeSettlementStatus = z.infer<typeof TradeSettlementStatusSchema>;
 
 export const TradeSchema = z.object({
   id: z.string(),
@@ -628,26 +635,26 @@ export const TradeSchema = z.object({
   price: decimal(),
   feeAmount: z.coerce.bigint(),
   feeSymbol: z.string(),
-  settlementStatus: TradeSettlementStatusSchema
-})
-export type Trade = z.infer<typeof TradeSchema>
+  settlementStatus: TradeSettlementStatusSchema,
+});
+export type Trade = z.infer<typeof TradeSchema>;
 
 export const BalanceSchema = z.object({
   symbol: z.string(),
   total: z.coerce.bigint(),
   available: z.coerce.bigint(),
   lastUpdated: z.coerce.date(),
-  usdcValue: decimal()
-})
-export type Balance = z.infer<typeof BalanceSchema>
+  usdcValue: decimal(),
+});
+export type Balance = z.infer<typeof BalanceSchema>;
 
 export const GetBalancesApiResponseSchema = z.object({
-  balances: z.array(BalanceSchema)
-})
+  balances: z.array(BalanceSchema),
+});
 
 export const GetWalletBalanceApiResponseSchema = z.object({
-  balance: z.coerce.bigint()
-})
+  balance: z.coerce.bigint(),
+});
 
 export const MarketTradeFields = {
   ID: 0,
@@ -657,8 +664,8 @@ export const MarketTradeFields = {
   NOTIONAL: 4,
   TIMESTAMP: 5,
   TAKER_NICKNAME: 6,
-  TAKER_ID: 7
-} as const
+  TAKER_ID: 7,
+} as const;
 export const MarketTradeSchema = z.tuple([
   z.string(), // trade id
   OrderSideSchema, // type
@@ -667,17 +674,17 @@ export const MarketTradeSchema = z.tuple([
   z.coerce.bigint(), // notional
   z.coerce.date(), // timestamp
   z.string(), // taker nickname
-  UserIdSchema // taker id
-])
-export type MarketTrade = z.infer<typeof MarketTradeSchema>
+  UserIdSchema, // taker id
+]);
+export type MarketTrade = z.infer<typeof MarketTradeSchema>;
 
 const MarketTradesApiResponse = z.object({
   marketId: z.string(),
-  trades: z.array(MarketTradeSchema)
-})
+  trades: z.array(MarketTradeSchema),
+});
 export type MarketTradesApiResponseType = z.infer<
   typeof MarketTradesApiResponse
->
+>;
 
 export const CoinCommentSchema = z.object({
   id: z.string(),
@@ -687,15 +694,15 @@ export const CoinCommentSchema = z.object({
   authorAvatarUrl: z.string().nullable(),
   content: z.string(),
   isMention: z.coerce.boolean(),
-  isMentionUnread: z.coerce.boolean()
-})
-export type CoinComment = z.infer<typeof CoinCommentSchema>
+  isMentionUnread: z.coerce.boolean(),
+});
+export type CoinComment = z.infer<typeof CoinCommentSchema>;
 
-export type QuoteSymbol = 'USDC' | 'BTC'
+export type QuoteSymbol = "USDC" | "BTC";
 export type Quote = {
-  market: MarketWithSymbolInfos,
-  side: OrderSide,
-  amount: bigint,
-  quote: bigint,
-  inAsset: QuoteSymbol,
-}
+  market: MarketWithSymbolInfos;
+  side: OrderSide;
+  amount: bigint;
+  quote: bigint;
+  inAsset: QuoteSymbol;
+};

@@ -1,14 +1,14 @@
-import * as bitcoin from 'bitcoinjs-lib';
-import {networks} from 'bitcoinjs-lib';
-import {BitcoinWallet} from './types.js';
-import {ECPairFactory, ECPairInterface} from 'ecpair';
-import * as ecc from 'tiny-secp256k1';
-import {sign} from 'bitcoinjs-message';
-import mempoolJS from '@mempool/mempool.js';
-import {Signer} from "bip322-js";
-import * as wif from "wif"
-import {AddressTxsUtxo} from "@mempool/mempool.js/lib/interfaces/bitcoin/addresses.js";
-import {MempoolReturn} from "@mempool/mempool.js/lib/interfaces/index.js";
+import * as bitcoin from "bitcoinjs-lib";
+import { networks } from "bitcoinjs-lib";
+import { BitcoinWallet } from "./types.js";
+import { ECPairFactory, ECPairInterface } from "ecpair";
+import * as ecc from "tiny-secp256k1";
+import { sign } from "bitcoinjs-message";
+import mempoolJS from "@mempool/mempool.js";
+import { Signer } from "bip322-js";
+import * as wif from "wif";
+import { AddressTxsUtxo } from "@mempool/mempool.js/lib/interfaces/bitcoin/addresses.js";
+import { MempoolReturn } from "@mempool/mempool.js/lib/interfaces/index.js";
 
 // Initialize bitcoinjs-lib with the required elliptic curve implementation
 bitcoin.initEccLib(ecc);
@@ -22,7 +22,7 @@ interface MempoolConfig {
 
 // Default Mempool client configuration
 const defaultMempoolConfig: MempoolConfig = {
-  host: 'localhost',
+  host: "localhost",
   port: 1080,
 };
 
@@ -58,15 +58,15 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   constructor(
     privateKeyHex: string,
     network: bitcoin.networks.Network = bitcoin.networks.bitcoin,
-    rpcConfig: MempoolConfig = defaultMempoolConfig
+    rpcConfig: MempoolConfig = defaultMempoolConfig,
   ) {
     // Remove '0x' prefix if present
-    const cleanPrivateKeyHex = privateKeyHex.startsWith('0x')
+    const cleanPrivateKeyHex = privateKeyHex.startsWith("0x")
       ? privateKeyHex.slice(2)
       : privateKeyHex;
 
     // Create key pair from private key
-    const privateKeyBuffer = Buffer.from(cleanPrivateKeyHex, 'hex');
+    const privateKeyBuffer = Buffer.from(cleanPrivateKeyHex, "hex");
     this.keyPair = ECPair.fromPrivateKey(privateKeyBuffer);
 
     this.network = network;
@@ -75,18 +75,18 @@ export class BitcoinWalletImpl implements BitcoinWallet {
     // Create RPC client
     this.mempoolClient = mempoolJS({
       hostname: `${this.mempoolConfig.host}:${this.mempoolConfig.port}`,
-      network: network === bitcoin.networks.bitcoin ? 'mainnet' : 'regtest',
-      config: {}
-    })
+      network: network === bitcoin.networks.bitcoin ? "mainnet" : "regtest",
+      config: {},
+    });
 
     // Generate P2WPKH address from public key (main address)
     const { address } = bitcoin.payments.p2wpkh({
       pubkey: this.keyPair.publicKey,
-      network: this.network
+      network: this.network,
     });
 
     if (!address) {
-      throw new Error('Failed to generate Bitcoin address');
+      throw new Error("Failed to generate Bitcoin address");
     }
 
     this._address = address;
@@ -106,11 +106,11 @@ export class BitcoinWalletImpl implements BitcoinWallet {
     // Create a P2TR payment object
     const p2tr = bitcoin.payments.p2tr({
       internalPubkey: xOnlyPubkey,
-      network: this.network
+      network: this.network,
     });
 
     if (!p2tr.address) {
-      throw new Error('Failed to generate P2TR address for ordinals');
+      throw new Error("Failed to generate P2TR address for ordinals");
     }
 
     return p2tr.address;
@@ -126,9 +126,9 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   static fromKeyPair(
     keyPair: ECPairInterface,
     network: bitcoin.networks.Network = bitcoin.networks.bitcoin,
-    rpcConfig: MempoolConfig = defaultMempoolConfig
+    rpcConfig: MempoolConfig = defaultMempoolConfig,
   ): BitcoinWalletImpl {
-    const privateKeyHex = keyPair.privateKey!.toString('hex');
+    const privateKeyHex = keyPair.privateKey!.toString("hex");
     return new BitcoinWalletImpl(privateKeyHex, network, rpcConfig);
   }
 
@@ -140,10 +140,10 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    */
   static createRandom(
     network: bitcoin.networks.Network = bitcoin.networks.bitcoin,
-    rpcConfig: MempoolConfig = defaultMempoolConfig
+    rpcConfig: MempoolConfig = defaultMempoolConfig,
   ): BitcoinWalletImpl {
     const keyPair = ECPair.makeRandom();
-    const privateKeyHex = keyPair.privateKey!.toString('hex');
+    const privateKeyHex = keyPair.privateKey!.toString("hex");
     return new BitcoinWalletImpl(privateKeyHex, network, rpcConfig);
   }
 
@@ -167,13 +167,16 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    * @returns Promise resolving to an array of UTXOs
    */
   private async getUtxos(
-    address: string
+    address: string,
   ): Promise<Array<{ txid: string; vout: number; value: number }>> {
     try {
       // Get unspent outputs for the address
-      const unspentOutputs = await this.mempoolClient.bitcoin.addresses.getAddressTxsUtxo({address: address});
+      const unspentOutputs =
+        await this.mempoolClient.bitcoin.addresses.getAddressTxsUtxo({
+          address: address,
+        });
 
-      console.log(unspentOutputs)
+      console.log(unspentOutputs);
       // Map the unspent outputs to our UTXO format
       return unspentOutputs.map((output: AddressTxsUtxo) => ({
         txid: output.txid,
@@ -193,7 +196,8 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   private async estimateFeeFromRpc(): Promise<bigint> {
     try {
       // Get the current fee rate from the Bitcoin RPC
-      const feeRate = await this.mempoolClient.bitcoin.fees.getFeesRecommended()
+      const feeRate =
+        await this.mempoolClient.bitcoin.fees.getFeesRecommended();
 
       const satPerVbyte = feeRate.halfHourFee;
 
@@ -218,15 +222,21 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    */
   async signMessage(address: string, message: string): Promise<string> {
     if (address !== this._address && address !== this._ordinalsAddress) {
-      throw new Error(`Address mismatch: expected ${this._address}, got ${address}`);
+      throw new Error(
+        `Address mismatch: expected ${this._address}, got ${address}`,
+      );
     }
 
     try {
       // For P2WPKH address (main address)
       if (address === this._address) {
         // Use bitcoinjs-message to sign the message
-        const signature = sign(message, this.keyPair.privateKey!, this.keyPair.compressed);
-        return signature.toString('base64');
+        const signature = sign(
+          message,
+          this.keyPair.privateKey!,
+          this.keyPair.compressed,
+        );
+        return signature.toString("base64");
       }
       // For P2TR address (ordinals address)
       else {
@@ -244,7 +254,15 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    */
   private async signTaprootMessage(message: string): Promise<string> {
     try {
-      return Signer.sign(wif.encode({version: this.network === networks.bitcoin ? 128 : 239, privateKey: Uint8Array.from(this.keyPair.privateKey!), compressed: true}), this._ordinalsAddress, message).toString()
+      return Signer.sign(
+        wif.encode({
+          version: this.network === networks.bitcoin ? 128 : 239,
+          privateKey: Uint8Array.from(this.keyPair.privateKey!),
+          compressed: true,
+        }),
+        this._ordinalsAddress,
+        message,
+      ).toString();
     } catch (e) {
       console.error("Taproot message signing failed:", e);
       throw e;
@@ -266,7 +284,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       const utxos = await this.getUtxos(this._address);
 
       if (utxos.length === 0) {
-        throw new Error('No UTXOs available to spend');
+        throw new Error("No UTXOs available to spend");
       }
 
       // Calculate the total available balance
@@ -277,7 +295,9 @@ export class BitcoinWalletImpl implements BitcoinWallet {
 
       // Check if we have enough balance
       if (totalBalance < Number(amount) + Number(estimatedFee)) {
-        throw new Error(`Insufficient balance: ${totalBalance} satoshis, need ${Number(amount) + Number(estimatedFee)} satoshis`);
+        throw new Error(
+          `Insufficient balance: ${totalBalance} satoshis, need ${Number(amount) + Number(estimatedFee)} satoshis`,
+        );
       }
 
       // Add inputs
@@ -288,8 +308,8 @@ export class BitcoinWalletImpl implements BitcoinWallet {
           index: utxo.vout,
           witnessUtxo: {
             script: bitcoin.address.toOutputScript(this._address, this.network),
-            value: utxo.value
-          }
+            value: utxo.value,
+          },
         });
         inputAmount += utxo.value;
 
@@ -302,15 +322,16 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       // Add output to recipient
       psbt.addOutput({
         address: to,
-        value: Number(amount)
+        value: Number(amount),
       });
 
       // Add change output if needed
       const changeAmount = inputAmount - Number(amount) - Number(estimatedFee);
-      if (changeAmount > 546) { // Dust limit
+      if (changeAmount > 546) {
+        // Dust limit
         psbt.addOutput({
           address: this._address,
-          value: changeAmount
+          value: changeAmount,
         });
       }
 
@@ -323,7 +344,9 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       psbt.finalizeAllInputs();
 
       const tx = psbt.extractTransaction();
-      await this.mempoolClient.bitcoin.transactions.postTx({txhex: tx.toHex()})
+      await this.mempoolClient.bitcoin.transactions.postTx({
+        txhex: tx.toHex(),
+      });
 
       return tx.getId();
     } catch (e) {
