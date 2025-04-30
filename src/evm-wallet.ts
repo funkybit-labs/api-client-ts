@@ -26,7 +26,7 @@ export class EvmWalletImpl implements EvmWallet {
   private readonly provider: ethers.Provider;
 
   /**
-   * Create a new EVM wallet
+   * Creates a new EVM wallet
    * @param privateKeyHex The private key in hex format (with or without '0x' prefix)
    * @param providerConfig Optional provider configuration
    */
@@ -58,7 +58,7 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   /**
-   * Create a new EVM wallet from an existing ethers Wallet
+   * Creates a new EVM wallet from an existing ethers Wallet
    * @param wallet An ethers.js Wallet instance
    * @param providerConfig Optional provider configuration
    * @returns A new EvmWalletImpl instance
@@ -71,7 +71,7 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   /**
-   * Create a new EVM wallet with a random private key
+   * Creates a new EVM wallet with a random private key
    * @param providerConfig Optional provider configuration
    * @returns A new EvmWalletImpl instance
    */
@@ -83,21 +83,21 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   /**
-   * Get the wallet's address
+   * Gets the wallet's address
    */
   get address(): string {
     return this.wallet.address;
   }
 
   /**
-   * Get the chain ID
+   * Gets the chain ID
    */
   get chainId(): number {
     return this._chainId;
   }
 
   /**
-   * Sign typed data using the wallet's private key
+   * Signs typed data using the wallet's private key
    * @param domain The domain data
    * @param types The type definitions
    * @param value The value to sign
@@ -125,7 +125,7 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   /**
-   * Make a read-only call to a contract
+   * Makes a read-only call to a contract
    * @param to The contract address
    * @param data The call data
    * @returns Promise resolving to the result
@@ -144,7 +144,7 @@ export class EvmWalletImpl implements EvmWallet {
   }
 
   /**
-   * Send a transaction
+   * Sends a transaction
    * @param to The recipient address
    * @param value The amount to send (in wei)
    * @param data Optional data for the transaction
@@ -176,16 +176,24 @@ export class EvmWalletImpl implements EvmWallet {
     }
   }
 
+  /**
+   * Waits for a transaction receipt
+   * @param txHash The transaction hash
+   */
   async waitForTransactionReceipt(txHash: string): Promise<void> {
     await this.wallet.provider?.waitForTransaction(txHash);
   }
 
+  /**
+   * Switches to a different chain
+   * @param chainId The chain ID to switch to
+   */
   async switchChain(chainId: number): Promise<void> {
     this._chainId = chainId;
   }
 
   /**
-   * Estimate gas for a transaction
+   * Estimates gas for a transaction
    * @param to The recipient address
    * @param value The amount to send (in wei)
    * @param data Optional data for the transaction

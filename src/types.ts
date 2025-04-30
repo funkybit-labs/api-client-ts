@@ -17,8 +17,10 @@ export interface EvmWallet extends BaseWallet {
   /** The chain ID for the EVM wallet */
   chainId: number;
   /**
-   * Sign a login message using EIP-712
-   * @param message The EIP-712 message to sign
+   * Signs a login message using EIP-712
+   * @param domain The domain data
+   * @param types The type definitions
+   * @param value The value to sign
    * @returns Promise resolving to the signature
    */
   signTypedData: (
@@ -28,7 +30,7 @@ export interface EvmWallet extends BaseWallet {
   ) => Promise<string>;
 
   /**
-   * Execute a read-only contract call
+   * Executes a read-only contract call
    * @param to The contract address
    * @param data The encoded function call data
    * @returns Promise resolving to the call result
@@ -36,7 +38,7 @@ export interface EvmWallet extends BaseWallet {
   call: (to: string, data: string) => Promise<string>;
 
   /**
-   * Send a transaction
+   * Sends a transaction
    * @param to The recipient address
    * @param value The amount to send (in native currency)
    * @param data Optional transaction data
@@ -49,7 +51,7 @@ export interface EvmWallet extends BaseWallet {
   ) => Promise<string>;
 
   /**
-   * Estimate gas cost for a transaction
+   * Estimates gas cost for a transaction
    * @param to The recipient address
    * @param value The amount to send (in native currency)
    * @param data Optional transaction data
@@ -57,8 +59,16 @@ export interface EvmWallet extends BaseWallet {
    */
   estimateGas: (to: string, value: bigint, data?: string) => Promise<bigint>;
 
+  /**
+   * Waits for a transaction receipt
+   * @param txHash The transaction hash
+   */
   waitForTransactionReceipt: (txHash: string) => Promise<void>;
 
+  /**
+   * Switches to a different chain
+   * @param chainId The chain ID to switch to
+   */
   switchChain: (chainId: number) => Promise<void>;
 }
 
@@ -66,17 +76,18 @@ export interface EvmWallet extends BaseWallet {
  * Interface for Bitcoin wallets
  */
 export interface BitcoinWallet extends BaseWallet {
-  /** The ordinalsAddress */
+  /** The ordinals address */
   ordinalsAddress: string;
   /**
-   * Sign a message
+   * Signs a message
+   * @param address The address to sign for
    * @param message The message to sign
    * @returns Promise resolving to the signature
    */
   signMessage: (address: string, message: string) => Promise<string>;
 
   /**
-   * Send a Bitcoin transaction
+   * Sends a Bitcoin transaction
    * @param to The recipient address
    * @param amount The amount to send (in satoshis)
    * @returns Promise resolving to the transaction hash
@@ -84,7 +95,7 @@ export interface BitcoinWallet extends BaseWallet {
   sendTransaction: (to: string, amount: bigint) => Promise<string>;
 
   /**
-   * Estimate the fee for a Bitcoin transaction
+   * Estimates the fee for a Bitcoin transaction
    * @returns Promise resolving to the estimated fee in satoshis
    */
   estimateFee: () => Promise<bigint>;

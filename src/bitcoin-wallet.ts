@@ -50,7 +50,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   private readonly mempoolClient: MempoolReturn;
 
   /**
-   * Create a new Bitcoin wallet
+   * Creates a new Bitcoin wallet
    * @param privateKeyHex The private key in hex format (with or without '0x' prefix)
    * @param network The Bitcoin network to use (default: bitcoin)
    * @param rpcConfig Optional RPC configuration
@@ -96,7 +96,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Generate a P2TR (Pay-to-Taproot) address for ordinals
+   * Generates a P2TR (Pay-to-Taproot) address for ordinals
    * @returns P2TR address string
    */
   private generateP2TRAddress(): string {
@@ -117,7 +117,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Create a new Bitcoin wallet from an existing key pair
+   * Creates a new Bitcoin wallet from an existing key pair
    * @param keyPair The ECPair key pair
    * @param network The Bitcoin network to use (default: bitcoin)
    * @param rpcConfig Optional RPC configuration
@@ -133,7 +133,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Create a new Bitcoin wallet with a random private key
+   * Creates a new Bitcoin wallet with a random private key
    * @param network The Bitcoin network to use (default: bitcoin)
    * @param rpcConfig Optional RPC configuration
    * @returns A new BitcoinWalletImpl instance
@@ -148,21 +148,21 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Get the wallet's address
+   * Gets the wallet's address
    */
   get address(): string {
     return this._address;
   }
 
   /**
-   * Get the ordinals address
+   * Gets the ordinals address
    */
   get ordinalsAddress(): string {
     return this._ordinalsAddress;
   }
 
   /**
-   * Get UTXOs for a Bitcoin address using the Bitcoin RPC
+   * Gets UTXOs for a Bitcoin address using the Bitcoin RPC
    * @param address The Bitcoin address to get UTXOs for
    * @returns Promise resolving to an array of UTXOs
    */
@@ -189,7 +189,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Estimate the fee for a Bitcoin transaction using the Bitcoin RPC
+   * Estimates the fee for a Bitcoin transaction using the Bitcoin RPC
    * @returns Promise resolving to the estimated fee in satoshis
    */
   private async estimateFeeFromRpc(): Promise<bigint> {
@@ -217,7 +217,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Sign a message using the wallet's private key
+   * Signs a message using the wallet's private key
    * @param address The address to sign for (must match the wallet's address)
    * @param message The message to sign
    * @returns Promise resolving to the signature
@@ -249,8 +249,9 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       throw e;
     }
   }
+
   /**
-   * Sign a message using Taproot (Schnorr) signatures
+   * Signs a message using Taproot (Schnorr) signatures
    * @param message The message to sign
    * @returns Promise resolving to the signature
    */
@@ -272,7 +273,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Send a Bitcoin transaction
+   * Sends a Bitcoin transaction
    * @param to The recipient address
    * @param amount The amount to send (in satoshis)
    * @returns Promise resolving to the transaction hash
@@ -358,7 +359,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
-   * Estimate the fee for a Bitcoin transaction
+   * Estimates the fee for a Bitcoin transaction
    * @returns Promise resolving to the estimated fee in satoshis
    */
   async estimateFee(): Promise<bigint> {
