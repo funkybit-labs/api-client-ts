@@ -75,7 +75,11 @@ export class BitcoinWalletImpl implements BitcoinWallet {
     // Create RPC client
     this.mempoolClient = mempoolJS({
       hostname: `${this.mempoolConfig.host}:${this.mempoolConfig.port}`,
-      network: network === bitcoin.networks.bitcoin ? "mainnet" : "regtest",
+      network: network === bitcoin.networks.bitcoin
+        ? "mainnet"
+        : network === bitcoin.networks.testnet
+          ? "testnet"
+          : "regtest",
       config: {},
     });
 
