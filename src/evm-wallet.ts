@@ -13,8 +13,8 @@ interface ProviderConfig {
  * Default provider configuration for Ethereum mainnet
  */
 const defaultProviderConfig: ProviderConfig = {
-  url: "http://localhost:8545",
-  network: 1337,
+  url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
+  network: process.env.BASE_CHAIN_ID ? Number(process.env.BASE_CHAIN_ID) : 8453,
 };
 
 /**
