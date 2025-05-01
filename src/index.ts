@@ -142,6 +142,7 @@ export class FunkybitClient {
   private ws: Websocket | undefined;
   private subscriptions: Map<string, SubscriptionEventHandler[]> = new Map();
   private adapterMarketOrderBook: OrderBook | undefined;
+  private associatedSymbols: Map<string, Symbol> = new Map();
   loggedIn: boolean = false;
 
   constructor(params: FunkybitClientParams) {
@@ -427,19 +428,33 @@ export class FunkybitClient {
     return this.authToken;
   }
 
-  async login(): Promise<boolean> {
+  async refreshSymbols(): Promise<void> {
+    const config = await this.api.getAccountConfiguration();
+    config.associatedSymbols.forEach((symbol) => {
+      this.associatedSymbols.set(symbol.name, symbol);
+    });
+  }
+
+  associatedSymbolInfo(name: string) {
+    return this.associatedSymbols.get(name);
+  }
+
+  async login(): Promise<void> {
     if (!this.params.bitcoinWallet || !this.params.evmWallet) {
       throw new Error("Both Bitcoin and EVM wallets are required for login");
     }
 
     if (this.loggedIn) {
-      return true;
+      return;
     }
 
     this.config = await noAuthApiClient.getConfiguration();
 
     // First authenticate with Bitcoin wallet
     const config = await this.api.getAccountConfiguration();
+    config.associatedSymbols.forEach((symbol) => {
+      this.associatedSymbols.set(symbol.name, symbol);
+    });
 
     // link EVM if it is not already linked
     if (config.authorizedAddresses.length === 0) {
@@ -477,7 +492,7 @@ export class FunkybitClient {
     this.subscribeToAdapterMarket();
 
     this.loggedIn = true;
-    return true;
+    return;
   }
 
   async withdrawal(symbol: Symbol, amount: bigint): Promise<Withdrawal> {
@@ -582,7 +597,7 @@ export class FunkybitClient {
           if (symbol.contractAddress === null) {
             const depositAddress = chain.contracts.find(
               (c) => c.name === "CoinProxy",
-            )?.address;
+            )?.nativeDepositAddress;
             if (depositAddress !== undefined) {
               const txHash = await this.params.bitcoinWallet.sendTransaction(
                 depositAddress,
@@ -598,7 +613,25 @@ export class FunkybitClient {
               throw new Error("Bitcoin deposit address not found");
             }
           } else {
-            throw new Error("Rune deposits coming soon");
+            const depositAddress = chain.contracts.find(
+              (c) => c.name === "CoinProxy",
+            )?.tokenDepositAddress;
+            if (depositAddress !== undefined) {
+              const txHash =
+                await this.params.bitcoinWallet.sendRuneTransaction(
+                  symbol,
+                  depositAddress,
+                  amount,
+                );
+              const response = await this.api.createDeposit({
+                symbol: symbol.name,
+                amount: amount,
+                txHash,
+              });
+              return response.deposit;
+            } else {
+              throw new Error("Rune deposit address not found");
+            }
           }
         } else {
           await this.params.evmWallet.switchChain(Number(chain.id));

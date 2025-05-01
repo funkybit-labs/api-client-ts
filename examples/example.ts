@@ -5,7 +5,8 @@ import {networks} from "bitcoinjs-lib";
 import * as wif from "wif"
 import {Balance, Order, Trade} from "@/types.js";
 import {Decimal} from "decimal.js";
-import {formatUnits} from "viem";
+import {formatUnits, parseUnits} from "viem";
+import {run} from "jest";
 
 // before running this example, populate these with:
 //   a WIF format key for a bitcoin wallet with at least 5000 sats
@@ -15,7 +16,7 @@ const evmPrivateKey = process.env.FUNKYBIT_EXAMPLE_EVM_KEY ?? ""
 const bitcoinWallet = new BitcoinWalletImpl(Buffer.from(wif.decode(btcPrivateKey).privateKey).toString('hex'), networks.regtest)
 console.log(`Demo Bitcoin Address (P2WPKH): ${bitcoinWallet.address}`);
 
-const evmWallet = new EvmWalletImpl("0xeb26ff8ad398676bdb5a9759ad2c8635c73bd2f5825341df1b952a99bad9d220") //.createRandom()
+const evmWallet = new EvmWalletImpl(evmPrivateKey) //.createRandom()
 console.log(`Demo EVM Address: ${evmWallet.address}`);
 
 async function waitFor(description: string, condition: () => boolean, upTo: number = 10000) {
@@ -54,13 +55,8 @@ export async function runExample() {
     });
 
     console.log("Attempting Funkybit login...");
-    const loginSuccess = await client.login();
-
-    if (loginSuccess) {
-      console.log("✅ Funkybit login successful!");
-    } else {
-      console.log("❌ Funkybit login failed or was cancelled by the user.");
-    }
+    await client.login();
+    console.log("✅ Funkybit login successful!");
 
     let balances: Balance[]
     const unsubscribeFromBalances = client.subscribeToBalances((full) => {
@@ -208,6 +204,68 @@ export async function runExample() {
         120 * 1000
       )
       console.log(`✅ Settlement completed`)
+
+      // look for the coin with the smallest market cap that we can withdraw
+      const withdrawableRunes = coins.filter(c => c.status === 'ConstantProductAmm').sort((a, b) => a.marketCap.sub(b.marketCap).toNumber())
+      if (withdrawableRunes.length > 0) {
+        const runeToWithdraw = withdrawableRunes[0]
+        const filledRuneOrderIds: string[] = []
+        // first let's buy $2 worth
+        const approximateAmount = new Decimal(2).div(runeToWithdraw.currentPrice)
+        const runeMarket = await client.getMarket(runeToWithdraw)
+        const quote = await client.getQuote(runeMarket, 'Buy', parseUnits(approximateAmount.toString(), runeToWithdraw.symbol.decimals), 'USDC')
+        console.log(`Got a quote of ${formatUnits(quote.quote, 6)} USDC for buying ${approximateAmount.toString()} of ${runeToWithdraw.symbol.name}`)
+        const order = await client.placeOrder(quote)
+        console.log("✅ Placed Rune buy order");
+        await waitFor("Rune buy order to reach a terminal state", () => orders.get(order.orderId)?.isFinal() ?? false)
+
+        const finalStatus = orders.get(order.orderId)?.status
+        console.log("rune order final status", finalStatus);
+        if (finalStatus === 'Filled') {
+          filledRuneOrderIds.push(order.orderId)
+          const runeBalance = balanceOf(runeToWithdraw.symbol.name) ?? 0n
+          if (runeBalance > 0n) {
+            console.log(`Withdrawing ${formatUnits(runeBalance, runeToWithdraw.symbol.decimals)} ${runeToWithdraw.symbol.name}`);
+            await client.withdrawal(runeMarket.baseSymbol, runeBalance)
+            await waitFor("Rune withdrawal to complete", () => balanceOf(runeToWithdraw.symbol.name) === 0n)
+            console.log(`✅ Withdrawal completed`)
+
+            // need to refresh symbol info to get all relevant fields for rune
+            await client.refreshSymbols()
+            const runeSymbol = client.associatedSymbolInfo(runeToWithdraw.symbol.name)!
+
+            console.log(`Depositing ${formatUnits(runeBalance, runeToWithdraw.symbol.decimals)} ${runeToWithdraw.symbol.name}`);
+            await client.deposit(runeSymbol, runeBalance)
+            await waitFor("Rune deposit to complete", () => balanceOf(runeToWithdraw.symbol.name) === runeBalance, 30 * 60 * 1000)
+            console.log(`✅ Deposit completed`)
+
+            // sell the rune
+            const sellRuneQuote = await client.getQuote(runeMarket, 'Sell', runeBalance, 'USDC')
+            const sellOrder = await client.placeOrder(sellRuneQuote)
+            console.log("✅ Placed Rune sell order");
+            await waitFor("Rune sell order to reach terminal state", () => orders.get(sellOrder.orderId)?.isFinal() ?? false)
+            const finalSellStatus = orders.get(sellOrder.orderId)?.status
+            console.log("Rune sell order final status", finalSellStatus);
+            if (finalSellStatus === 'Filled') {
+              filledRuneOrderIds.push(sellOrder.orderId)
+            }
+          }
+
+          console.log(`Waiting up to 2 minutes for ${filledRuneOrderIds.length} trades to settle`)
+          await waitFor("Rune trades to settle",
+            () => new Set(
+              trades.values()
+                .filter(t => t.settlementStatus === 'Completed')
+                .map(t => t.orderId)
+            )
+              .intersection(
+                new Set(filledRuneOrderIds)
+              ).size === filledRuneOrderIds.length,
+            120 * 1000
+          )
+          console.log(`✅ Settlement completed`)
+        }
+      }
       const remainingBTCBalance = bitcoinSymbol ? balanceOf(bitcoinSymbol.name) ?? 0n : 0n
       const remainingUSDCBalance = usdcSymbol ? balanceOf(usdcSymbol.name) ?? 0n : 0n
       if (remainingUSDCBalance > 0n) {
