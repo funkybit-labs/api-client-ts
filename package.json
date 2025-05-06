@@ -1,5 +1,5 @@
 {
-  "name": "@funkybit/api-client",
+  "name": "@funkybit-labs/api-client",
   "version": "0.1.0",
   "description": "TypeScript Client for interacting with funkybit - a cross-chain DeFi platform built on Bitcoin and EVM",
   "type": "module",
