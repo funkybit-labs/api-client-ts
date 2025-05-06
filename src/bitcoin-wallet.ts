@@ -435,6 +435,8 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       }
       // Select rune UTXOs
       // For runes, select multiple UTXOs if needed to cover the amount
+      // N.B.: this is a simple implementation meant as an example - for production use,
+      // should replace with an implementation that optimizes for a minimum number of utxos
       const selectedRuneUtxos = [];
       let selectedRuneAmount = 0n;
 
@@ -464,9 +466,11 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       // Estimate fee
       const estimatedFee = await this.estimateFee(
         11 + (1 + selectedRuneUtxos.length) * 63 + 4 * 41,
-      );
+      ) + BigInt((2 - selectedRuneUtxos.length) * runeOutputAmount);
 
       // For BTC, select UTXOs to cover the fee and minimum output values
+      // N.B.: this is a simple implementation meant as an example - for production use,
+      // should replace with an implementation that optimizes for a minimum number of utxos
       let selectedBtcUtxos = [];
       let totalBtcInput = 0n;
 
