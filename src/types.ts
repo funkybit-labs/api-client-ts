@@ -95,6 +95,18 @@ export interface BitcoinWallet extends BaseWallet {
   sendTransaction: (to: string, amount: bigint) => Promise<string>;
 
   /**
+   * Sends a Bitcoin transaction
+   * @param symbol The rune symbol
+   * @param to The recipient address
+   * @param amount The amount to send (in units)
+   * @returns Promise resolving to the transaction hash
+   */
+  sendRuneTransaction: (
+    symbol: Symbol,
+    to: string,
+    amount: bigint,
+  ) => Promise<string>;
+  /**
    * Estimates the fee for a Bitcoin transaction
    * @returns Promise resolving to the estimated fee in satoshis
    */
@@ -717,3 +729,208 @@ export type Quote = {
   quote: bigint;
   inAsset: QuoteSymbol;
 };
+
+// Maestro API Schemas
+
+/**
+ * MaestroApi schemas for Bitcoin operations
+ */
+
+/**
+ * Block schema
+ */
+export const BlockSchema = z.object({
+  height: z.number(),
+});
+export type Block = z.infer<typeof BlockSchema>;
+
+/**
+ * Block response schema
+ */
+export const BlockResponseSchema = z.object({
+  data: BlockSchema,
+});
+export type BlockResponse = z.infer<typeof BlockResponseSchema>;
+
+/**
+ * Estimate fee schema
+ */
+export const EstimateFeeSchema = z.object({
+  feerate: decimal(),
+});
+export type EstimateFee = z.infer<typeof EstimateFeeSchema>;
+
+/**
+ * Estimate fee response schema
+ */
+export const EstimateFeeResponseSchema = z.object({
+  data: EstimateFeeSchema,
+});
+export type EstimateFeeResponse = z.infer<typeof EstimateFeeResponseSchema>;
+
+/**
+ * Script public key schema
+ */
+export const ScriptPubKeySchema = z.object({
+  address: z.string().nullable(),
+});
+export type ScriptPubKey = z.infer<typeof ScriptPubKeySchema>;
+
+/**
+ * Transaction output schema
+ */
+export const VOutSchema = z.object({
+  value: decimal(),
+  script_pub_key: ScriptPubKeySchema.nullable(),
+});
+export type VOut = z.infer<typeof VOutSchema>;
+
+/**
+ * Transaction input schema
+ */
+export const VInSchema = z.object({
+  txid: z.string(),
+  vout: z.number(),
+});
+export type VIn = z.infer<typeof VInSchema>;
+
+/**
+ * Transaction schema
+ */
+export const TransactionSchema = z.object({
+  txid: z.string(),
+  version: z.number(),
+  size: z.number(),
+  weight: z.number(),
+  confirmations: z.number(),
+  vins: z.array(VInSchema),
+  vouts: z.array(VOutSchema),
+});
+export type Transaction = z.infer<typeof TransactionSchema>;
+
+/**
+ * Rune amount schema
+ */
+export const RuneAmountSchema = z.object({
+  rune_id: z.string(),
+  amount: decimal(),
+});
+export type RuneAmount = z.infer<typeof RuneAmountSchema>;
+
+/**
+ * Unspent UTXO schema
+ */
+export const UnspentUtxoSchema = z.object({
+  txId: z.string(),
+  vout: z.number(),
+  confirmations: z.number().nullable(),
+  height: z.number().nullable(),
+  satoshis: z.coerce.bigint(),
+  runes: z.array(RuneAmountSchema),
+});
+export type UnspentUtxo = z.infer<typeof UnspentUtxoSchema>;
+
+/**
+ * Unspent Rune UTXO schema
+ */
+export const UnspentRuneUtxoSchema = z.object({
+  txid: z.string(),
+  vout: z.number(),
+  confirmations: z.number().nullable(),
+  height: z.number().nullable(),
+  satoshis: z.coerce.bigint(),
+  rune_amount: decimal(),
+});
+export type UnspentRuneUtxo = z.infer<typeof UnspentRuneUtxoSchema>;
+
+/**
+ * Chain tip schema
+ */
+export const ChainTipSchema = z.object({
+  block_hash: z.string(),
+  block_height: z.number(),
+});
+export type ChainTip = z.infer<typeof ChainTipSchema>;
+
+/**
+ * Unspent Rune UTXOs response schema
+ */
+export const UnspentRuneUtxosResponseSchema = z.object({
+  data: z.array(UnspentRuneUtxoSchema),
+  last_updated: ChainTipSchema,
+  next_cursor: z.string().nullable(),
+});
+export type UnspentRuneUtxosResponse = z.infer<
+  typeof UnspentRuneUtxosResponseSchema
+>;
+
+/**
+ * Unspent UTXOs response schema
+ */
+export const UnspentUtxosResponseSchema = z.object({
+  data: z.array(UnspentUtxoSchema),
+  last_updated: ChainTipSchema,
+  next_cursor: z.string().nullable(),
+});
+export type UnspentUtxosResponse = z.infer<typeof UnspentUtxosResponseSchema>;
+
+/**
+ * Transaction response schema
+ */
+export const TransactionResponseSchema = z.object({
+  data: TransactionSchema,
+});
+export type TransactionResponse = z.infer<typeof TransactionResponseSchema>;
+
+/**
+ * Rune info schema
+ */
+export const RuneInfoSchema = z.object({
+  id: z.string(),
+  spaced_name: z.string(),
+});
+export type RuneInfo = z.infer<typeof RuneInfoSchema>;
+
+/**
+ * Rune list response schema
+ */
+export const RuneListResponseSchema = z.object({
+  data: z.array(RuneInfoSchema),
+  last_updated: ChainTipSchema,
+  next_cursor: z.string().nullable(),
+});
+export type RuneListResponse = z.infer<typeof RuneListResponseSchema>;
+
+/**
+ * Rune details schema
+ */
+export const RuneDetailsSchema = z.object({
+  id: z.string(),
+  spaced_name: z.string(),
+  name: z.string(),
+  divisibility: z.number(),
+  symbol: z.string().nullable(),
+  etching_cenotaph: z.boolean(),
+  etching_tx: z.string(),
+});
+export type RuneDetails = z.infer<typeof RuneDetailsSchema>;
+
+/**
+ * Rune details response schema
+ */
+export const RuneDetailsResponseSchema = z.object({
+  data: RuneDetailsSchema,
+  last_updated: ChainTipSchema,
+});
+export type RuneDetailsResponse = z.infer<typeof RuneDetailsResponseSchema>;
+
+/**
+ * Runes by address response schema
+ */
+export const RunesByAddressResponseSchema = z.object({
+  data: z.record(z.string(), decimal()),
+  last_updated: ChainTipSchema,
+});
+export type RunesByAddressResponse = z.infer<
+  typeof RunesByAddressResponseSchema
+>;

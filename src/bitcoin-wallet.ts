@@ -1,6 +1,6 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { networks } from "bitcoinjs-lib";
-import { BitcoinWallet } from "./types.js";
+import { BitcoinWallet, Symbol } from "./types.js";
 import { ECPairFactory, ECPairInterface } from "ecpair";
 import * as ecc from "tiny-secp256k1";
 import { sign } from "bitcoinjs-message";
@@ -9,6 +9,10 @@ import { Signer } from "bip322-js";
 import * as wif from "wif";
 import { AddressTxsUtxo } from "@mempool/mempool.js/lib/interfaces/bitcoin/addresses.js";
 import { MempoolReturn } from "@mempool/mempool.js/lib/interfaces/index.js";
+import { MaestroClient } from "./maestro.js";
+
+import { parseUnits } from "viem";
+import { Edict, none, RuneId, Runestone, some } from "runelib";
 
 // Initialize bitcoinjs-lib with the required elliptic curve implementation
 bitcoin.initEccLib(ecc);
@@ -26,6 +30,17 @@ const defaultMempoolConfig: MempoolConfig = {
   port: process.env.MEMPOOL_PORT ? Number(process.env.MEMPOOL_PORT) : 443,
 };
 
+// Maestro client configuration
+export interface MaestroConfig {
+  url: string;
+  apiKey: string;
+}
+
+const defaultMaestroConfig: MaestroConfig = {
+  url: process.env.MAESTRO_API_URL ?? "https://xbt-mainnet.gomaestro-api.org",
+  apiKey: process.env.MAESTRO_API_KEY ?? "maestro-api-key",
+};
+
 // Define the type for unspent output from Bitcoin RPC
 interface UnspentOutput {
   txid: string;
@@ -38,6 +53,8 @@ interface UnspentOutput {
   safe: boolean;
 }
 
+const runeOutputAmount = 546; // Dust limit - standard for rune outputs
+
 /**
  * Implementation of the BitcoinWallet interface using bitcoinjs-lib
  */
@@ -48,17 +65,20 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   private readonly _ordinalsAddress: string;
   private readonly mempoolConfig: MempoolConfig;
   private readonly mempoolClient: MempoolReturn;
+  private readonly maestroClient: MaestroClient;
 
   /**
    * Creates a new Bitcoin wallet
    * @param privateKeyHex The private key in hex format (with or without '0x' prefix)
    * @param network The Bitcoin network to use (default: bitcoin)
-   * @param rpcConfig Optional RPC configuration
+   * @param mempoolConfig Optional mempool configuration
+   * @param maestroConfig Optional maestro configuration
    */
   constructor(
     privateKeyHex: string,
     network: bitcoin.networks.Network = bitcoin.networks.bitcoin,
-    rpcConfig: MempoolConfig = defaultMempoolConfig,
+    mempoolConfig: MempoolConfig = defaultMempoolConfig,
+    maestroConfig: MaestroConfig = defaultMaestroConfig,
   ) {
     // Remove '0x' prefix if present
     const cleanPrivateKeyHex = privateKeyHex.startsWith("0x")
@@ -70,18 +90,21 @@ export class BitcoinWalletImpl implements BitcoinWallet {
     this.keyPair = ECPair.fromPrivateKey(privateKeyBuffer);
 
     this.network = network;
-    this.mempoolConfig = rpcConfig;
+    this.mempoolConfig = mempoolConfig;
 
     // Create RPC client
     this.mempoolClient = mempoolJS({
       hostname: `${this.mempoolConfig.host}:${this.mempoolConfig.port}`,
-      network: network === bitcoin.networks.bitcoin
-        ? "mainnet"
-        : network === bitcoin.networks.testnet
-          ? "testnet"
-          : "regtest",
+      network:
+        network === bitcoin.networks.bitcoin
+          ? "mainnet"
+          : network === bitcoin.networks.testnet
+            ? "testnet"
+            : "regtest",
       config: {},
     });
+
+    this.maestroClient = new MaestroClient(maestroConfig);
 
     // Generate P2WPKH address from public key (main address)
     const { address } = bitcoin.payments.p2wpkh({
@@ -196,16 +219,13 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    * Estimates the fee for a Bitcoin transaction using the Bitcoin RPC
    * @returns Promise resolving to the estimated fee in satoshis
    */
-  private async estimateFeeFromRpc(): Promise<bigint> {
+  private async estimateFeeFromRpc(estimatedSize = 140): Promise<bigint> {
     try {
       // Get the current fee rate from the Bitcoin RPC
       const feeRate =
         await this.mempoolClient.bitcoin.fees.getFeesRecommended();
 
       const satPerVbyte = feeRate.halfHourFee;
-
-      // Estimate the size of a typical transaction (1 input, 2 outputs)
-      const estimatedSize = 140; // bytes
 
       // Calculate the fee
       const fee = Math.ceil(satPerVbyte * estimatedSize);
@@ -334,7 +354,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
 
       // Add change output if needed
       const changeAmount = inputAmount - Number(amount) - Number(estimatedFee);
-      if (changeAmount > 546) {
+      if (changeAmount > runeOutputAmount) {
         // Dust limit
         psbt.addOutput({
           address: this._address,
@@ -363,10 +383,249 @@ export class BitcoinWalletImpl implements BitcoinWallet {
   }
 
   /**
+   * Sends a Rune transaction
+   * @param symbol The rune symbol
+   * @param to The recipient address
+   * @param amount The amount to send (in units)
+   * @returns Promise resolving to the transaction hash
+   */
+  async sendRuneTransaction(
+    symbol: Symbol,
+    to: string,
+    amount: bigint,
+  ): Promise<string> {
+    try {
+      // Get rune details from Maestro client
+      const runeId = new RuneId(
+        Number(symbol.contractAddress!.split(":")[0] || 0),
+        Number(symbol.contractAddress!.split(":")[1] || 0),
+      );
+      const runeDetails = await this.maestroClient.getRuneDetails(
+        symbol.nameOnChain ?? symbol.name,
+      );
+      if (!runeDetails) {
+        throw new Error(`Rune with name ${symbol.nameOnChain} not found`);
+      }
+
+      // Get unspent rune UTXOs from the Maestro client
+      const unspentRuneUtxos = await this.maestroClient.getUnspentUtxosForRune(
+        this._ordinalsAddress,
+        symbol.contractAddress!,
+      );
+
+      if (unspentRuneUtxos.length === 0) {
+        throw new Error(`No unspent UTXOs found with rune ${symbol.name}`);
+      }
+
+      // Calculate total available rune amount
+      let totalRuneAmount = 0n;
+      for (const utxo of unspentRuneUtxos) {
+        // Use parseUnits for conversion
+        const runeAmountBigInt = parseUnits(
+          utxo.rune_amount.toFixed(runeDetails.divisibility),
+          runeDetails.divisibility,
+        );
+        totalRuneAmount += runeAmountBigInt;
+      }
+
+      if (totalRuneAmount < amount) {
+        throw new Error(
+          `Insufficient rune balance: ${totalRuneAmount}, need ${amount}`,
+        );
+      }
+      // Select rune UTXOs
+      // For runes, select multiple UTXOs if needed to cover the amount
+      // N.B.: this is a simple implementation meant as an example - for production use,
+      // should replace with an implementation that optimizes for a minimum number of utxos
+      const selectedRuneUtxos = [];
+      let selectedRuneAmount = 0n;
+
+      for (const utxo of unspentRuneUtxos) {
+        const utxoRuneAmount = parseUnits(
+          utxo.rune_amount.toFixed(runeDetails.divisibility),
+          runeDetails.divisibility,
+        );
+
+        selectedRuneUtxos.push(utxo);
+        selectedRuneAmount += utxoRuneAmount;
+
+        if (selectedRuneAmount >= amount) {
+          break;
+        }
+      }
+
+      // Get unspent BTC UTXOs for fee payment
+      const unspentBtcUtxos = (await this.getUtxos(this._address)).filter(
+        (u) => u.value !== runeOutputAmount,
+      );
+
+      if (unspentBtcUtxos.length === 0) {
+        throw new Error("No unspent BTC UTXOs available for paying fees");
+      }
+
+      // Estimate fee
+      const estimatedFee = await this.estimateFee(
+        11 + (1 + selectedRuneUtxos.length) * 63 + 4 * 41,
+      ) + BigInt((2 - selectedRuneUtxos.length) * runeOutputAmount);
+
+      // For BTC, select UTXOs to cover the fee and minimum output values
+      // N.B.: this is a simple implementation meant as an example - for production use,
+      // should replace with an implementation that optimizes for a minimum number of utxos
+      let selectedBtcUtxos = [];
+      let totalBtcInput = 0n;
+
+      for (const utxo of unspentBtcUtxos) {
+        selectedBtcUtxos.push(utxo);
+        totalBtcInput += BigInt(utxo.value);
+
+        if (totalBtcInput >= estimatedFee) {
+          break;
+        }
+      }
+
+      if (totalBtcInput < estimatedFee) {
+        throw new Error(
+          `Insufficient BTC balance for fees: have ${totalBtcInput}, need ${estimatedFee}`,
+        );
+      }
+
+      // Create the transaction
+      const psbt = new bitcoin.Psbt({ network: this.network });
+      const xOnlyPubkey = this.keyPair.publicKey.slice(1);
+      // Create tweaking hash (tagged hash of the x-only pubkey)
+      const tweakHash = bitcoin.crypto.taggedHash("TapTweak", xOnlyPubkey);
+
+      // Create a new keyPair with the tweaked private key
+      // (This is a common pattern in Taproot signing)
+      const ECPair = ECPairFactory(ecc);
+      let tweakedKeyPair;
+
+      try {
+        // Attempt to tweak the private key
+        const tweakedPrivateKey = ecc.privateAdd(
+          this.keyPair.privateKey!,
+          tweakHash,
+        );
+
+        if (!tweakedPrivateKey) {
+          throw new Error("Failed to create tweaked private key");
+        }
+
+        tweakedKeyPair = ECPair.fromPrivateKey(Buffer.from(tweakedPrivateKey));
+      } catch (e) {
+        console.error("Error creating tweaked key:", e);
+        throw new Error("Failed to create tweaked signing key: " + e);
+      }
+
+      // Add the rune UTXOs as inputs
+      for (const utxo of selectedRuneUtxos) {
+        // Get the P2TR payment object (using the original internal key)
+        const p2tr = bitcoin.payments.p2tr({
+          internalPubkey: xOnlyPubkey,
+          network: this.network,
+        });
+
+        if (!p2tr.output) {
+          throw new Error("Failed to create P2TR output script");
+        }
+
+        psbt.addInput({
+          hash: utxo.txid,
+          index: utxo.vout,
+          witnessUtxo: {
+            script: p2tr.output,
+            value: Number(utxo.satoshis),
+          },
+          tapInternalKey: xOnlyPubkey,
+        });
+      }
+
+      // Add BTC inputs
+      for (const utxo of selectedBtcUtxos) {
+        psbt.addInput({
+          hash: utxo.txid,
+          index: utxo.vout,
+          witnessUtxo: {
+            script: bitcoin.address.toOutputScript(this._address, this.network),
+            value: utxo.value,
+          },
+        });
+      }
+
+      // Create Runestone with edicts for transferring runes
+
+      // Create an edict to transfer runes to output 0 (recipient)
+      const edict = new Edict(runeId, amount, 0);
+
+      // Create a runestone with the edict
+      // The change output index for any remaining runes is 1
+      const runestone = new Runestone(
+        [edict],
+        none(),
+        none(),
+        some(1), // Specifies that output 1 should receive any change
+      );
+
+      // Add recipient output (with dust amount)
+      psbt.addOutput({
+        address: to,
+        value: runeOutputAmount,
+      });
+
+      // Add change output for rune change
+      psbt.addOutput({
+        address: this._ordinalsAddress,
+        value: runeOutputAmount,
+      });
+
+      // Add OP_RETURN output with runestone data
+      psbt.addOutput({
+        script: runestone.encipher(),
+        value: 0,
+      });
+
+      // Add BTC change output if necessary
+      const changeAmount = totalBtcInput - estimatedFee;
+      if (changeAmount > runeOutputAmount) {
+        psbt.addOutput({
+          address: this._address,
+          value: Number(changeAmount),
+        });
+      }
+
+      // Sign all inputs
+      // Sign all inputs with appropriate keys
+      for (let i = 0; i < psbt.txInputs.length; i++) {
+        // If this is a rune input (they come first), use the ordinals key pair
+        if (i < selectedRuneUtxos.length) {
+          // For P2TR inputs (ordinals), we need special signing
+          psbt.signTaprootInput(i, tweakedKeyPair);
+        } else {
+          // For regular BTC inputs
+          psbt.signInput(i, this.keyPair);
+        }
+      }
+
+      // Finalize and broadcast
+      psbt.finalizeAllInputs();
+      const tx = psbt.extractTransaction();
+
+      await this.mempoolClient.bitcoin.transactions.postTx({
+        txhex: tx.toHex(),
+      });
+
+      return tx.getId();
+    } catch (e) {
+      console.error("Failed to send Rune transaction:", e);
+      throw e;
+    }
+  }
+
+  /**
    * Estimates the fee for a Bitcoin transaction
    * @returns Promise resolving to the estimated fee in satoshis
    */
-  async estimateFee(): Promise<bigint> {
-    return this.estimateFeeFromRpc();
+  async estimateFee(estimatedSize = 140): Promise<bigint> {
+    return this.estimateFeeFromRpc(estimatedSize);
   }
 }
