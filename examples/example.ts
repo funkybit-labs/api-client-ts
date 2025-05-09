@@ -19,6 +19,9 @@ console.log(`Demo Bitcoin Address (P2WPKH): ${bitcoinWallet.address}`);
 const evmWallet = new EvmWalletImpl(evmPrivateKey) //.createRandom()
 console.log(`Demo EVM Address: ${evmWallet.address}`);
 
+const providedReferralCode = process.env.FUNKYBIT_REFERRAL_CODE
+
+
 async function waitFor(description: string, condition: () => boolean, upTo: number = 10000) {
   const start = new Date().getTime()
   return await new Promise((resolve, reject) => {
@@ -57,6 +60,13 @@ export async function runExample() {
     console.log("Attempting Funkybit login...");
     await client.login();
     console.log("✅ Funkybit login successful!");
+
+    console.log("My referral code is", client.myReferralCode)
+    if (!client.referredBy && providedReferralCode) {
+      console.log("Signing up with referral code", providedReferralCode)
+      await client.signUpWithReferralCode(providedReferralCode)
+    }
+    client.referredBy && console.log("✅ I was referred by", client.referredBy)
 
     let balances: Balance[]
     const unsubscribeFromBalances = client.subscribeToBalances((full) => {

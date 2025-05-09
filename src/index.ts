@@ -143,6 +143,8 @@ export class FunkybitClient {
   private subscriptions: Map<string, SubscriptionEventHandler[]> = new Map();
   private adapterMarketOrderBook: OrderBook | undefined;
   private associatedSymbols: Map<string, Symbol> = new Map();
+  myReferralCode: string | undefined = undefined
+  referredBy: string | null = null
   loggedIn: boolean = false;
 
   constructor(params: FunkybitClientParams) {
@@ -266,6 +268,25 @@ export class FunkybitClient {
             schema: ApiErrorsSchema,
           },
         ],
+      },
+      {
+        method: 'post',
+        path: '/v1/account-config/referred-by/:referralCode',
+        alias: 'setReferredBy',
+        parameters: [
+          {
+            name: 'referralCode',
+            type: 'Path',
+            schema: z.string()
+          }
+        ],
+        response: z.undefined(),
+        errors: [
+          {
+            status: 'default',
+            schema: ApiErrorsSchema
+          }
+        ]
       },
     ]);
     this.api.use(
@@ -456,6 +477,9 @@ export class FunkybitClient {
       this.associatedSymbols.set(symbol.name, symbol);
     });
 
+    this.myReferralCode = config.inviteCode
+    this.referredBy = config.referredByNickName
+
     // link EVM if it is not already linked
     if (config.authorizedAddresses.length === 0) {
       const authorizedWalletAuthToken = await this.signAuthToken(
@@ -492,6 +516,20 @@ export class FunkybitClient {
     this.subscribeToAdapterMarket();
 
     this.loggedIn = true;
+    return;
+  }
+
+  async signUpWithReferralCode(referralCode: string): Promise<void> {
+    if (!this.loggedIn) {
+      throw new Error("Must be logged in first");
+    }
+
+    await this.api.setReferredBy(undefined, {
+      params: { referralCode }
+    })
+
+    const config = await this.api.getAccountConfiguration();
+    this.referredBy = config.referredByNickName
     return;
   }
 
