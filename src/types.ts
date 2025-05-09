@@ -406,6 +406,7 @@ const CoinStatus = z.enum([
 export const CoinSchema = z.object({
   symbol: SymbolSchema,
   createdBy: CoinCreatorRefSchema.nullable(),
+  createdAt: z.coerce.date(),
   currentPrice: decimal(),
   marketCap: decimal(),
   lastTradedAt: z.coerce.date().nullable(),
