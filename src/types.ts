@@ -313,6 +313,7 @@ export const AccountConfigurationApiResponseSchema = z.object({
   inviteCode: z.string(),
   ordinalsAddress: AddressSchema.nullable(),
   funkybits: decimal(),
+  referredByNickName: z.string().nullable()
 });
 export type AccountConfigurationApiResponse = z.infer<
   typeof AccountConfigurationApiResponseSchema
