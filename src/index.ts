@@ -34,6 +34,9 @@ import {
   Withdrawal,
   CreateWithdrawalApiRequestSchema,
   WithdrawalApiResponseSchema,
+  RuneDepositPsbtParamsApiRequestSchema,
+  RuneDepositPsbtParamsApiResponseSchema,
+  GetWalletBalanceApiResponseSchema,
 } from "./types.js";
 import { ethers, TypedDataDomain, TypedDataField } from "ethers";
 import { SignTypedDataParameters } from "@wagmi/core";
@@ -176,6 +179,44 @@ export class FunkybitClient {
           },
         ],
         response: DepositApiResponseSchema,
+        errors: [
+          {
+            status: "default",
+            schema: ApiErrorsSchema,
+          },
+        ],
+      },
+      {
+        method: 'get',
+        path: '/v1/rune-wallet-balance/:runeId',
+        alias: 'getRuneWalletBalance',
+        parameters: [
+          {
+            name: 'runeId',
+            type: 'Path',
+            schema: z.string()
+          }
+        ],
+        response: GetWalletBalanceApiResponseSchema,
+        errors: [
+          {
+            status: 'default',
+            schema: ApiErrorsSchema
+          }
+        ]
+      },
+      {
+        method: "post",
+        path: "/v1/rune-deposit-psbt-params",
+        alias: "createRuneDepositPsbtParams",
+        parameters: [
+          {
+            name: "payload",
+            type: "Body",
+            schema: RuneDepositPsbtParamsApiRequestSchema,
+          },
+        ],
+        response: RuneDepositPsbtParamsApiResponseSchema,
         errors: [
           {
             status: "default",
@@ -651,25 +692,19 @@ export class FunkybitClient {
               throw new Error("Bitcoin deposit address not found");
             }
           } else {
-            const depositAddress = chain.contracts.find(
-              (c) => c.name === "CoinProxy",
-            )?.tokenDepositAddress;
-            if (depositAddress !== undefined) {
-              const txHash =
-                await this.params.bitcoinWallet.sendRuneTransaction(
-                  symbol,
-                  depositAddress,
-                  amount,
-                );
-              const response = await this.api.createDeposit({
-                symbol: symbol.name,
-                amount: amount,
-                txHash,
-              });
-              return response.deposit;
-            } else {
-              throw new Error("Rune deposit address not found");
-            }
+            const runeDepositPsbtParams = await this.api.createRuneDepositPsbtParams({
+              runeId: symbol.contractAddress!,
+              amount: amount,
+            });
+            const txHash = await this.params.bitcoinWallet.sendRuneTransaction(
+              runeDepositPsbtParams
+            );
+            const response = await this.api.createDeposit({
+              symbol: symbol.name,
+              amount: amount,
+              txHash,
+            });
+            return response.deposit;
           }
         } else {
           await this.params.evmWallet.switchChain(Number(chain.id));
@@ -1177,6 +1212,12 @@ export class FunkybitClient {
 
   shutdown() {
     this.ws?.close();
+  }
+
+  async runeWalletBalance(runeId: string): Promise<bigint> {
+    return (await this.api.getRuneWalletBalance({
+      params: { runeId }
+    })).balance;
   }
 
   async balances(): Promise<Balance[]> {

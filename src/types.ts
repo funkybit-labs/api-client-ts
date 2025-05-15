@@ -96,15 +96,11 @@ export interface BitcoinWallet extends BaseWallet {
 
   /**
    * Sends a Bitcoin transaction
-   * @param symbol The rune symbol
-   * @param to The recipient address
-   * @param amount The amount to send (in units)
+   * @param runeDepositPsbtParams Rune deposit psbt params from API
    * @returns Promise resolving to the transaction hash
    */
   sendRuneTransaction: (
-    symbol: Symbol,
-    to: string,
-    amount: bigint,
+    runeDepositPsbtParams: RuneDepositPsbtParamsApiResponse
   ) => Promise<string>;
   /**
    * Estimates the fee for a Bitcoin transaction
@@ -352,6 +348,40 @@ export const DepositApiResponseSchema = z.object({
 const ListDepositsApiResponseSchema = z.object({
   deposits: z.array(DepositSchema),
 });
+
+export const RuneDepositPsbtParamsApiRequestSchema = z.object({
+  runeId: z.string(),
+  amount: z.coerce.bigint(),
+});
+
+const BitcoinAddressTypeSchema = z.enum([
+  "P2WPKH",
+  "P2TR",
+  "P2SH",
+  "P2PKH",
+]);
+
+const TxInputSchema = z.object({
+  txId: z.string(),
+  vout: z.number(),
+  value: z.coerce.bigint(),
+  script: z.string(),
+  addressType: BitcoinAddressTypeSchema
+});
+export type TxInput = z.infer<typeof TxInputSchema>;
+
+const TxOutputSchema = z.object({
+  value: z.coerce.bigint(),
+  script: z.string(),
+});
+export type TxOutput = z.infer<typeof TxOutputSchema>;
+
+export const RuneDepositPsbtParamsApiResponseSchema = z.object({
+  runeInputs: z.array(TxInputSchema),
+  btcInputs: z.array(TxInputSchema),
+  outputs: z.array(TxOutputSchema),
+});
+export type RuneDepositPsbtParamsApiResponse = z.infer<typeof RuneDepositPsbtParamsApiResponseSchema>;
 
 export const CreateWithdrawalApiRequestSchema = z.object({
   symbol: z.string(),

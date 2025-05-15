@@ -43,6 +43,23 @@ async function waitFor(description: string, condition: () => boolean, upTo: numb
   })
 }
 
+async function waitForWalletBalanceToMatch(client: FunkybitClient, runeId: string, expectedBalance: bigint): Promise<boolean> {
+  let countdown = 20;
+  console.log("Waiting for wallet balance to be updated")
+  while (countdown > 0) {
+    if (await client.runeWalletBalance(runeId) == expectedBalance) {
+      console.log(`✅ Wallet Balance updated`)
+      return true
+    }
+    countdown -= 1
+    // Optionally, add a delay between retries
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  console.error("❌ Timed out waiting for wallet balance to update");
+  return false
+}
+
+
 export async function runExample() {
   console.log("Starting FunkybitClient example...");
 
@@ -97,8 +114,12 @@ export async function runExample() {
       return balances.find(b => b.symbol === name)?.available
     }
 
+    function totalBalanceOf(name: string): bigint | undefined {
+      return balances.find(b => b.symbol === name)?.total
+    }
+
     const bitcoinSymbol = client.bitcoinSymbol()
-    const btcDepositAmount = 3000n
+    const btcDepositAmount = 30000n
     if (bitcoinSymbol !== undefined) {
       const bitcoinBalance = balances!.find(b => b.symbol === bitcoinSymbol.name)?.available
       if ((bitcoinBalance ?? 0n) < btcDepositAmount) {
@@ -109,7 +130,7 @@ export async function runExample() {
       }
     }
 
-    const usdcDepositAmount = 3000000n
+    const usdcDepositAmount = 30000000n
     const usdcSymbol = client.usdcSymbol()
     if (usdcSymbol !== undefined) {
       const usdcBalance = balances!.find(b => b.symbol === usdcSymbol.name)?.available
@@ -233,12 +254,14 @@ export async function runExample() {
         console.log("rune order final status", finalStatus);
         if (finalStatus === 'Filled') {
           filledRuneOrderIds.push(order.orderId)
+          const startingRuneWalletBalance = await client.runeWalletBalance(runeToWithdraw.symbol.contractAddress!)
           const runeBalance = balanceOf(runeToWithdraw.symbol.name) ?? 0n
           if (runeBalance > 0n) {
             console.log(`Withdrawing ${formatUnits(runeBalance, runeToWithdraw.symbol.decimals)} ${runeToWithdraw.symbol.name}`);
             await client.withdrawal(runeMarket.baseSymbol, runeBalance)
-            await waitFor("Rune withdrawal to complete", () => balanceOf(runeToWithdraw.symbol.name) === 0n)
+            await waitFor("Rune withdrawal to complete", () => totalBalanceOf(runeToWithdraw.symbol.name) === 0n)
             console.log(`✅ Withdrawal completed`)
+            await waitForWalletBalanceToMatch(client, runeToWithdraw.symbol.contractAddress!, startingRuneWalletBalance + runeBalance)
 
             // need to refresh symbol info to get all relevant fields for rune
             await client.refreshSymbols()
@@ -248,6 +271,7 @@ export async function runExample() {
             await client.deposit(runeSymbol, runeBalance)
             await waitFor("Rune deposit to complete", () => balanceOf(runeToWithdraw.symbol.name) === runeBalance, 30 * 60 * 1000)
             console.log(`✅ Deposit completed`)
+            await waitForWalletBalanceToMatch(client, runeToWithdraw.symbol.contractAddress!, startingRuneWalletBalance)
 
             // sell the rune
             const sellRuneQuote = await client.getQuote(runeMarket, 'Sell', runeBalance, 'USDC')
