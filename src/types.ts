@@ -313,7 +313,7 @@ export const AccountConfigurationApiResponseSchema = z.object({
   inviteCode: z.string(),
   ordinalsAddress: AddressSchema.nullable(),
   funkybits: decimal(),
-  referredByNickName: z.string().nullable()
+  referredByNickName: z.string().nullable(),
 });
 export type AccountConfigurationApiResponse = z.infer<
   typeof AccountConfigurationApiResponseSchema
@@ -410,6 +410,7 @@ export const CoinSchema = z.object({
   createdAt: z.coerce.date(),
   currentPrice: decimal(),
   marketCap: decimal(),
+  totalSupply: z.coerce.bigint(),
   lastTradedAt: z.coerce.date().nullable(),
   progress: decimal().nullable(),
   status: CoinStatus,
