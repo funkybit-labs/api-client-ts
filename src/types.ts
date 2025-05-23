@@ -936,3 +936,31 @@ export const RunesByAddressResponseSchema = z.object({
 export type RunesByAddressResponse = z.infer<
   typeof RunesByAddressResponseSchema
 >;
+
+// Mobile connection types
+export const MobileConnectionStatusSchema = z.enum([
+  "PendingScan",
+  "PendingApproval",
+  "PendingCompletion",
+  "Active"
+]);
+export type MobileConnectionStatus = z.infer<typeof MobileConnectionStatusSchema>;
+
+export const MobileConnectionSchema = z.object({
+  id: z.string(),
+  status: MobileConnectionStatusSchema,
+});
+export type MobileConnection = z.infer<typeof MobileConnectionSchema>;
+
+export const AcceptMobileConnectionApiRequestSchema = z.object({
+  address: z.string(),
+  signature: z.string(),
+  deviceLabel: z.string(),
+  verifyingChainId: z.string(),
+});
+export type AcceptMobileConnectionApiRequest = z.infer<typeof AcceptMobileConnectionApiRequestSchema>;
+
+export const AcceptMobileConnectionApiResponseSchema = z.object({
+  connection: MobileConnectionSchema,
+});
+export type AcceptMobileConnectionApiResponse = z.infer<typeof AcceptMobileConnectionApiResponseSchema>;

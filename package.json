@@ -1,10 +1,10 @@
 {
   "name": "@funkybit-labs/api-client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TypeScript Client for interacting with funkybit - a cross-chain DeFi platform built on Bitcoin and EVM",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest",
@@ -32,7 +32,7 @@
     "axios": "^1.7.5",
     "bip322-js": "^2.0.0",
     "bitcoin-rpc-client": "^0.0.0",
-    "bitcoinjs-lib": "^6.1.5",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
     "bitcoinjs-message": "^2.2.0",
     "decimal.js": "^10.4.0",
     "ecpair": "^2.1.0",

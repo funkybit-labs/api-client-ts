@@ -53,7 +53,7 @@ interface UnspentOutput {
   safe: boolean;
 }
 
-const runeOutputAmount = 546; // Dust limit - standard for rune outputs
+const runeOutputAmount = 546n; // Dust limit - standard for rune outputs
 
 /**
  * Implementation of the BitcoinWallet interface using bitcoinjs-lib
@@ -195,7 +195,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
    */
   private async getUtxos(
     address: string,
-  ): Promise<Array<{ txid: string; vout: number; value: number }>> {
+  ): Promise<Array<{ txid: string; vout: number; value: bigint }>> {
     try {
       // Get unspent outputs for the address
       const unspentOutputs =
@@ -207,7 +207,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       return unspentOutputs.map((output: AddressTxsUtxo) => ({
         txid: output.txid,
         vout: output.vout,
-        value: output.value,
+        value: BigInt(output.value),
       }));
     } catch (error) {
       console.error("Failed to get UTXOs from Mempool API:", error);
@@ -315,7 +315,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       }
 
       // Calculate the total available balance
-      const totalBalance = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+      const totalBalance = utxos.reduce((sum, utxo) => sum + utxo.value, 0n);
 
       // Estimate the fee using the Bitcoin RPC
       const estimatedFee = await this.estimateFee();
@@ -328,7 +328,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       }
 
       // Add inputs
-      let inputAmount = 0;
+      let inputAmount = 0n;
       for (const utxo of utxos) {
         psbt.addInput({
           hash: utxo.txid,
@@ -349,11 +349,11 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       // Add output to recipient
       psbt.addOutput({
         address: to,
-        value: Number(amount),
+        value: amount,
       });
 
       // Add change output if needed
-      const changeAmount = inputAmount - Number(amount) - Number(estimatedFee);
+      const changeAmount = inputAmount - amount - estimatedFee;
       if (changeAmount > runeOutputAmount) {
         // Dust limit
         psbt.addOutput({
@@ -466,7 +466,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       // Estimate fee
       const estimatedFee = await this.estimateFee(
         11 + (1 + selectedRuneUtxos.length) * 63 + 4 * 41,
-      ) + BigInt((2 - selectedRuneUtxos.length) * runeOutputAmount);
+      ) + BigInt((2 - selectedRuneUtxos.length)) * runeOutputAmount;
 
       // For BTC, select UTXOs to cover the fee and minimum output values
       // N.B.: this is a simple implementation meant as an example - for production use,
@@ -534,7 +534,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
           index: utxo.vout,
           witnessUtxo: {
             script: p2tr.output,
-            value: Number(utxo.satoshis),
+            value: utxo.satoshis,
           },
           tapInternalKey: xOnlyPubkey,
         });
@@ -581,7 +581,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       // Add OP_RETURN output with runestone data
       psbt.addOutput({
         script: runestone.encipher(),
-        value: 0,
+        value: 0n,
       });
 
       // Add BTC change output if necessary
@@ -589,7 +589,7 @@ export class BitcoinWalletImpl implements BitcoinWallet {
       if (changeAmount > runeOutputAmount) {
         psbt.addOutput({
           address: this._address,
-          value: Number(changeAmount),
+          value: changeAmount,
         });
       }
 
