@@ -34,6 +34,8 @@ import {
   Withdrawal,
   CreateWithdrawalApiRequestSchema,
   WithdrawalApiResponseSchema,
+  AcceptMobileConnectionApiRequestSchema,
+  AcceptMobileConnectionApiResponseSchema,
 } from "./types.js";
 import { ethers, TypedDataDomain, TypedDataField } from "ethers";
 import { SignTypedDataParameters } from "@wagmi/core";
@@ -114,6 +116,30 @@ export const noAuthApiClient = new Zodios(apiBaseUrl, [
       },
     ],
     response: z.undefined(),
+    errors: [
+      {
+        status: "default",
+        schema: ApiErrorsSchema,
+      },
+    ],
+  },
+  {
+    method: "put",
+    path: "/v1/mobile-connection/:connectionGuid/accept",
+    alias: "acceptMobileConnection",
+    parameters: [
+      {
+        name: "connectionGuid",
+        type: "Path",
+        schema: z.string(),
+      },
+      {
+        name: "payload",
+        type: "Body",
+        schema: AcceptMobileConnectionApiRequestSchema,
+      },
+    ],
+    response: AcceptMobileConnectionApiResponseSchema,
     errors: [
       {
         status: "default",
@@ -1249,3 +1275,28 @@ export class FunkybitClient {
     return () => this.unsubscribe(pricesTopic(marketId, duration), handler);
   }
 }
+
+export {
+  type BitcoinWallet,
+  type EvmWallet,
+  type Symbol,
+  type Chain,
+  type ConfigurationApiResponse,
+  type MarketWithSymbolInfos,
+  type Coin,
+  type CoinsSortOption,
+  type OrderSide,
+  type ClientOrderId,
+  type OrderAmount,
+  type Quote,
+  type QuoteSymbol,
+  type Balance,
+  type Order,
+  type Trade,
+  type Withdrawal,
+  type Deposit,
+  type AcceptMobileConnectionApiRequest,
+  type AcceptMobileConnectionApiResponse,
+  type MobileConnection,
+  type MobileConnectionStatus,
+} from "./types.js";
